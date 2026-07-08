@@ -72,7 +72,8 @@ MANUAL_RE = re.compile(
     r"\[MANUAL\]\s*(?:pose=\((-?\d+),(-?\d+),(-?\d+)d\)\s*)?"
     r"fwd=([+-]?\d+(?:\.\d+)?)\s*diff=([+-]?\d+(?:\.\d+)?)\s*"
     r"guard=(\w+)\s*\|\s*F/FL/FR=(\d+)/(\d+)/(\d+)\s*\|\s*chao=(-?\d+)\s*bat=(\d+)mV")
-PROMPT_RE = re.compile(r"root@\S+:[^#\n]*# ?")
+# Reconhece o prompt de qualquer usuario (root termina em '#', demais em '$').
+PROMPT_RE = re.compile(r"[\w.-]+@[\w.-]+:[^\n#$]*[#$] ?")
 IPV4_RE = re.compile(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)")
 COMMON_ROBOT_HOSTS = [
     "khepera",
@@ -570,6 +571,7 @@ def discover_wifi_devices(timeout=4.0, include_subnet=True):
 
 class SerialConsoleTransport:
     mode = "usb"
+    username = "root"   # console serial faz auto-login como root
 
     def __init__(self, port):
         self.port = port
@@ -680,6 +682,10 @@ class RobotLink:
         self.echo_off = False
         self._alive = False
         self.wifi_ip = None             # IP obtido pelo ultimo job_wifi_setup
+        self.need_sudo = False          # usuario nao-root -> elevar p/ root
+        self.escalated = True           # ja "root" por padrao (USB/root SSH)
+        self.sudo_password = ""         # senha do login, reusada no sudo -S
+        self.awaiting_pw = False        # esperando o prompt do sudo p/ enviar a senha
 
     # ---------------- conexao ----------------
     def _connect_transport(self, transport):
@@ -690,6 +696,13 @@ class RobotLink:
         self.port = transport.label
         self._alive = True
         self.echo_off = False
+        # Multi-usuario: se o login nao for root, eleva com sudo -s ao ver o
+        # primeiro prompt, para que hardware (I2C), deploy e compilacao (em
+        # /home/root) rodem como root, igual ao console serial.
+        user = getattr(transport, "username", "root")
+        self.need_sudo = (user != "root")
+        self.escalated = not self.need_sudo
+        self.sudo_password = getattr(transport, "password", "") or ""
         threading.Thread(target=self._read_loop, daemon=True).start()
         if transport.mode == "wifi":
             self._log(f"[interface] conectado via Wi-Fi/SSH em {transport.label}")
@@ -777,11 +790,28 @@ class RobotLink:
                 self._write("\r")
                 part = ""
                 continue
+            if self.awaiting_pw and "password" in part.lower() and ":" in part:
+                # sudo esta pedindo a senha ("Password:" ou "[sudo] password for..:")
+                self.awaiting_pw = False
+                self._write(self.sudo_password + "\r")
+                part = ""
+                continue
             while "\n" in part:
                 line, part = part.split("\n", 1)
                 self._handle_line(PROMPT_RE.sub("", line))
             if PROMPT_RE.search(part):
                 part = PROMPT_RE.sub("", part)
+                if self.need_sudo and not self.escalated:
+                    # primeiro prompt como usuario comum -> virar root.
+                    # sudo -S le a senha do stdin; enviamos a senha do login
+                    # so quando o marcador do prompt do sudo aparecer (timing).
+                    self.escalated = True
+                    self.echo_off = False   # refaz stty -echo no shell root
+                    self.awaiting_pw = bool(self.sudo_password)
+                    self._log("[interface] elevando privilegios: sudo -s")
+                    self._write("stty -echo\r")     # nao ecoar a senha
+                    self._write("sudo -S -s\r")
+                    continue
                 if not self.echo_off:
                     self.echo_off = True
                     self._write("stty -echo\r")

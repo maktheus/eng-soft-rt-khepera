@@ -48,6 +48,21 @@ ao robo continuam os mesmos do modo USB. A descoberta automatica usa uma
 varredura curta do `/24` da rede local, nomes comuns como `khepera.local` e a
 tabela ARP da maquina.
 
+### Multiplos usuarios (root ou nao-root)
+
+O controle do robo (I2C dos motores/sensores) e a compilacao em `/home/root`
+exigem root. A interface lida com isso automaticamente:
+
+- Login como `root` (USB ou SSH): usado direto, sem sudo.
+- Login como usuario comum (ex.: `msuchoa`): ao ver o primeiro prompt, a
+  interface eleva a sessao para root com `sudo -s`, reutilizando a mesma senha
+  do login para responder ao prompt do sudo. A partir dai deploy, compilacao,
+  missao e teleop rodam como root, igual ao modo USB.
+
+Para isso o usuario precisa ter permissao de sudo no robo (estar no grupo
+`sudo`/`wheel`). Se o sudo estiver como `NOPASSWD`, a senha nem chega a ser
+pedida; caso contrario, a senha do login e usada.
+
 ## Rodar
 
 ```powershell
