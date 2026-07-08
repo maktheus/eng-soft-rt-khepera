@@ -1,0 +1,85 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/RectangleArena.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/factory/containers/protos/WoodenBox.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/k-team/khepera4/protos/Khepera4.proto"
+
+WorldInfo {
+  basicTimeStep 16
+  contactProperties [
+    ContactProperties {
+      material2 "khepera4 caster wheel"
+      coulombFriction [
+        0.01
+      ]
+    }
+  ]
+}
+Viewpoint {
+  orientation -0.5773 0.5773 0.5773 2.0944
+  position 0 0 4.6
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+RectangleArena {
+  floorSize 3 3
+  wallHeight 0.15
+}
+# ---- ALVO (apenas visual: disco vermelho marcando o ponto B) ----
+DEF GOAL Solid {
+  translation 1.0 1.0 0.001
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 1 0 0
+        metalness 0
+        roughness 1
+      }
+      geometry Box {
+        size 0.18 0.18 0.002
+      }
+    }
+  ]
+  name "goal"
+}
+# ---- OBSTACULOS (slalom na diagonal start -> goal) ----
+WoodenBox {
+  translation -0.5 -0.5 0.1
+  size 0.2 0.2 0.2
+}
+WoodenBox {
+  translation 0 0 0.1
+  name "wooden box(1)"
+  size 0.25 0.25 0.2
+}
+WoodenBox {
+  translation 0.5 0.5 0.1
+  name "wooden box(2)"
+  size 0.2 0.2 0.2
+}
+WoodenBox {
+  translation 0.4 -0.3 0.1
+  name "wooden box(3)"
+  size 0.15 0.15 0.2
+}
+WoodenBox {
+  translation -0.3 0.4 0.1
+  name "wooden box(4)"
+  size 0.15 0.15 0.2
+}
+# ---- O ROBO: Khepera IV no ponto A (-1,-1), de frente pro alvo ----
+Khepera4 {
+  translation -1.0 -1.0 0
+  rotation 0 0 1 0.785398
+  controller "goto_avoid"
+  turretSlot [
+    GPS {
+    }
+    InertialUnit {
+    }
+  ]
+}

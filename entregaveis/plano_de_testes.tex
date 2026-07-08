@@ -1,0 +1,121 @@
+\input{preambulo}
+\newcommand{\tipodoc}{Plano de Testes}
+\newcommand{\datadoc}{30 de junho de 2026}
+
+\begin{document}
+\fazcapa
+\controleversoes
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Introdução}
+% =====================================================================
+\subsection{Objetivo}
+Este documento define a \textbf{estratégia, os casos e os critérios de teste} do \emph{\projnome}, de modo a verificar, de forma sistemática e rastreável, o atendimento aos requisitos especificados. É o artefato de planejamento que orienta a posterior execução, cujos resultados são registrados no documento de \emph{Protocolo de Testes}.
+
+\subsection{Escopo}
+Abrange testes \textbf{funcionais}, \textbf{não funcionais} (segurança/desempenho) e de \textbf{tempo real} do software de controle, conduzidos no simulador Webots. Não abrange, nesta fase, a validação no robô físico nem ambientes com obstáculos móveis.
+
+\subsection{Referências}
+Documento de Análise de Requisitos; Documento de Arquitetura; I.~Sommerville, \emph{Engenharia de Software} (cap.~8); IEEE Std 829 (\emph{Test Documentation}).
+
+% =====================================================================
+\section{Estratégia de testes}
+% =====================================================================
+\subsection{Níveis de teste}
+\begin{description}[leftmargin=2.2cm,style=nextline]
+  \item[Unidade] Verificação das funções auxiliares isoladas (normalização de ângulo \texttt{wrap\_pi}, saturação \texttt{clampd}, cálculo de erro de rumo e cinemática diferencial), por inspeção e asserções pontuais.
+  \item[Integração] Verificação do encadeamento Percepção\,$\to$\,FSM\,$\to$\,Controle\,$\to$\,Atuação dentro de um ciclo do laço.
+  \item[Sistema] Execução da \emph{missão completa} A\,$\to$\,B no cenário com obstáculos.
+\end{description}
+
+\subsection{Abordagem}
+Predomina o teste \textbf{caixa-preta orientado a requisitos} (verifica-se o comportamento observável frente a cada requisito), complementado por \textbf{caixa-branca} (inspeção do laço de controle e das transições da máquina de estados). A execução é \textbf{automatizável em modo \emph{headless}} e a observação se dá por \textbf{telemetria instrumentada} (arquivo \texttt{run.log}), o que confere objetividade e reprodutibilidade.
+
+\subsection{Procedimento padrão de execução}
+\begin{enumerate}[noitemsep,topsep=2pt]
+  \item configurar o mundo (arena, obstáculos, posições inicial e alvo);
+  \item compilar o controlador e executar o Webots em modo \texttt{--batch --mode=fast --no-rendering};
+  \item coletar a telemetria periódica em \texttt{run.log};
+  \item comparar o resultado observado com o esperado e registrar PASSOU/FALHOU.
+\end{enumerate}
+
+% =====================================================================
+\section{Itens a testar}
+% =====================================================================
+\begin{itemize}[noitemsep,topsep=2pt]
+  \item \textbf{A testar:} RF-01 a RF-07; RNF-01 (segurança); RT-01 (período do laço).
+  \item \textbf{A verificar por inspeção:} RF-08 (configuração) e RF-09 (sinalização de estado).
+  \item \textbf{Fora desta fase:} portabilidade ao robô físico (RNF-04) e obstáculos dinâmicos.
+\end{itemize}
+
+% =====================================================================
+\section{Ambiente de teste}
+% =====================================================================
+\begin{table}[H]\centering
+\caption{Configuração do ambiente de teste.}
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Item} & \textbf{Configuração} \\
+\midrule
+Simulador & Webots R2025a (modo \emph{headless}: \texttt{--batch --mode=fast --no-rendering}). \\
+Controlador & \texttt{goto\_avoid} (linguagem C, FSM Navegar/Girar/Contornar). \\
+Cenário & Arena $3\times3$~m; 5 obstáculos (\texttt{WoodenBox}); início $(-1,-1)$; alvo $(1,1)$. \\
+Instrumentação & Telemetria periódica em \texttt{run.log} (descarga por linha via \texttt{fflush}). \\
+Localização & GPS + IMU (simulação). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =====================================================================
+\section{Critérios gerais de aprovação/reprovação}
+% =====================================================================
+\textbf{Aprovado (PASSOU)} quando o resultado observado corresponde ao esperado \emph{e} não há colisão. \textbf{Reprovado (FALHOU)} em caso de colisão, não-chegada ao alvo dentro do tempo previsto, ou violação do período de tempo real. Defeitos identificados são registrados e, após correção, o caso é \emph{reexecutado}.
+
+% =====================================================================
+\section{Casos de teste}
+% =====================================================================
+\begin{table}[H]\centering
+\caption{Especificação dos casos de teste.}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}l X l X@{}}
+\toprule
+\textbf{ID} & \textbf{Objetivo} & \textbf{Req.} & \textbf{Resultado esperado} \\
+\midrule
+CT-01 & Navegar em caminho livre (sem obstáculos no trajeto direto). & RF-01, RF-03 & Robô atinge o alvo e para dentro da tolerância (7~cm). \\
+CT-02 & Desviar de um obstáculo frontal isolado. & RF-02 & Robô contorna o obstáculo e retoma o curso ao alvo. \\
+CT-03 & Concluir a missão no \emph{slalom} de 5 obstáculos. & RF-02, RNF-01 & Robô chega ao alvo \textbf{sem colisões}. \\
+CT-04 & Escapar de mínimo local (alvo atrás de obstáculo frontal). & RF-06 & Robô não trava; contorna e prossegue. \\
+CT-05 & Respeitar o período do laço de controle. & RT-01 & Laço periódico de 16~ms sem perda de passo. \\
+CT-06 & Registrar telemetria e calibração dos sensores. & RF-07 & \texttt{run.log} gerado; base de IR caracterizada por medição. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent\textbf{Detalhamento --- CT-03 (caso principal).}
+\emph{Pré-condições:} mundo com 5 obstáculos; robô em $(-1,-1)$ orientado ao alvo. \emph{Passos:} executar a missão em modo \emph{headless}; coletar \texttt{run.log}. \emph{Entrada:} alvo $(1,1)$. \emph{Resultado esperado:} distância ao alvo decresce até $<7$~cm; nenhuma leitura indica colisão; sequência de estados \textsc{Navegar}/\textsc{Girar}/\textsc{Contornar} observada. \emph{Critério:} chegada sem colisão.
+
+\noindent\textbf{Detalhamento --- CT-04 (robustez).}
+\emph{Pré-condições:} obstáculo posicionado entre robô e alvo (rumo $\approx 0$). \emph{Resultado esperado:} o robô \emph{não} permanece preso (posição não estaciona); a manobra de escape é acionada e a missão prossegue.
+
+% =====================================================================
+\section{Critérios de suspensão e retomada}
+% =====================================================================
+Os testes são \textbf{suspensos} diante de defeito bloqueante (impede a continuidade da missão) ou indisponibilidade do ambiente. São \textbf{retomados} após a correção do defeito, com \emph{reexecução} dos casos afetados e de regressão dos demais.
+
+% =====================================================================
+\section{Responsáveis e cronograma}
+% =====================================================================
+A execução é liderada pelo Engenheiro de Testes (Luan Alexandre Ramos Barreto), com apoio da equipe, e deve concluir-se até \textbf{30/06/2026}, com os resultados consolidados no Protocolo de Testes.
+
+% =====================================================================
+\section{Riscos de teste}
+% =====================================================================
+\begin{itemize}[noitemsep,topsep=2pt]
+  \item \textbf{Cobertura geométrica limitada:} nem toda configuração de obstáculos é exercitada (mitigação: incluir cenário de mínimo local, CT-04).
+  \item \textbf{Divergência simulação\,$\to$\,real:} resultados em simulação podem não refletir o robô físico (mitigação: registrar como ressalva; teste físico em fase futura).
+  \item \textbf{Ausência de medição formal de WCET:} o período é verificado por regularidade da telemetria, não por análise de pior caso (mitigação: indicar como trabalho futuro).
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,36 @@
+# Ferramenta baixada (Tectonic, ~48 MB) — nao versionar
+tools/
+
+# Webots: artefatos de build
+controllers/**/build/
+
+# Binarios compilados (controller Webots + robo)
+*.exe
+*.o
+*.d
+*.obj
+khepera_real/patrulha/patrulha
+
+# LaTeX: intermediarios (mantemos os .tex e .pdf)
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.vrb
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+*.bbl
+*.blg
+*.idx
+*.ilg
+*.ind
+
+# Webots: estado de GUI por-usuario
+worlds/.*.wbproj
+
+# SO
+Thumbs.db
+.DS_Store

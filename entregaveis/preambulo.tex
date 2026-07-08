@@ -1,0 +1,89 @@
+% ===== Preâmbulo compartilhado (Tectonic / XeTeX) — documentos da FTL094 =====
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\usepackage[brazil]{babel}
+\usepackage{geometry}
+\geometry{a4paper,margin=2.5cm}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,automata,shapes.geometric,fit,backgrounds,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+% ----- cores -----
+\definecolor{ufamblue}{RGB}{0,51,102}
+\definecolor{codegreen}{rgb}{0,0.5,0}
+\definecolor{codeblue}{rgb}{0,0,0.7}
+\definecolor{codered}{rgb}{0.6,0,0}
+\definecolor{lgray}{rgb}{0.95,0.95,0.95}
+
+% ----- listagens C -----
+\lstdefinestyle{c}{language=C,basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codeblue}\bfseries,commentstyle=\color{codegreen}\itshape,
+  stringstyle=\color{codered},numbers=left,numberstyle=\tiny\color{gray},
+  frame=single,breaklines=true,tabsize=2,showstringspaces=false,columns=fullflexible}
+
+% ----- constantes do projeto -----
+\newcommand{\projnome}{Sistema de Navegação Autônoma para o Robô Móvel Khepera~IV}
+\newcommand{\disciplina}{FTL094 --- Engenharia de Software de Tempo Real}
+\newcommand{\periodo}{Período Letivo 2026/1}
+\newcommand{\versaodoc}{1.0}
+
+% ----- cabeçalho/rodapé -----
+\pagestyle{fancy}\fancyhf{}
+\rhead{\small \tipodoc}
+\lhead{\small Khepera~IV --- FTL094}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ----- coluna X centralizada p/ tabularx -----
+\newcolumntype{C}{>{\centering\arraybackslash}X}
+
+% ----- capa padronizada -----
+\newcommand{\fazcapa}{%
+\begin{titlepage}\centering
+{\large\bfseries UNIVERSIDADE FEDERAL DO AMAZONAS (UFAM)}\\[3pt]
+{\normalsize Centro de P\&D em Tecnologia Eletrônica e da Informação --- CETELI}\\[2pt]
+{\normalsize Programa de Pós-Graduação em Engenharia Elétrica --- PPGEE}\\[26pt]
+{\large \disciplina}\\[2pt]
+{\normalsize \periodo}\\[64pt]
+\rule{\textwidth}{1.2pt}\\[12pt]
+{\Huge\bfseries\color{ufamblue} \tipodoc}\\[14pt]
+{\Large \projnome}\\[10pt]
+\rule{\textwidth}{1.2pt}\\[48pt]
+{\large\bfseries Equipe}\\[8pt]
+{\normalsize Gabriel Henrique de Souza Nazaré}\\[3pt]
+{\normalsize Luan Alexandre Ramos Barreto}\\[3pt]
+{\normalsize Matheus Rocha Canto}\\[3pt]
+{\normalsize Matheus Serrão Uchôa}\\[3pt]
+{\normalsize Ricardo Mendonça Braz}\\[3pt]
+{\normalsize Yan Fernandes da Silva}\\[40pt]
+{\normalsize Docente responsável: Prof. Dr.~[nome do docente]}\\
+\vfill
+{\small Documento de tipo \emph{\tipodoc} --- Versão \versaodoc}\\[2pt]
+{\small Manaus --- AM, \datadoc}
+\end{titlepage}}
+
+% ----- tabela de controle de versões -----
+\newcommand{\controleversoes}{%
+\section*{Controle de versões}
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+\textbf{Versão} & \textbf{Data} & \textbf{Autor} & \textbf{Descrição} \\
+\midrule
+1.0 & \datadoc & Equipe FTL094 & Emissão inicial do documento. \\
+\bottomrule
+\end{tabularx}
+\bigskip}

@@ -1,0 +1,118 @@
+\input{preambulo}
+\newcommand{\tipodoc}{Código-Fonte}
+\newcommand{\datadoc}{9 de julho de 2026}
+
+% estilos de listagem adicionais (mundo e Makefile)
+\lstdefinestyle{plain}{basicstyle=\ttfamily\scriptsize,frame=single,breaklines=true,
+  numbers=left,numberstyle=\tiny\color{gray},columns=fullflexible,showstringspaces=false}
+\lstdefinestyle{mk}{language=make,basicstyle=\ttfamily\footnotesize,frame=single,
+  breaklines=true,numbers=left,numberstyle=\tiny\color{gray},columns=fullflexible}
+
+\begin{document}
+\fazcapa
+\controleversoes
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Introdução}
+% =====================================================================
+\subsection{Objetivo}
+Este documento reúne, na íntegra, o \textbf{código-fonte desenvolvido} para o \emph{\projnome}, conforme exigido na entrega final do projeto. As listagens são extraídas diretamente dos arquivos do repositório, garantindo fidelidade ao código efetivamente executado e avaliado no Protocolo de Testes.
+
+\subsection{Escopo}
+O software compreende três artefatos: (i) o \textbf{mundo de simulação} (cenário do Webots), (ii) o \textbf{controlador de navegação} em linguagem C e (iii) o \textbf{script de compilação} (\emph{Makefile}). A lógica de navegação --- arquitetura híbrida com máquina de estados --- está descrita no documento de Arquitetura; aqui o foco é o código.
+
+% =====================================================================
+\section{Organização e estrutura do código}
+% =====================================================================
+A estrutura de diretórios segue a convenção de projetos do Webots (pastas \texttt{worlds/} e \texttt{controllers/}):
+
+\begin{lstlisting}[style=plain,numbers=none]
+eng_soft_rt/
+  worlds/
+    first.wbt                 <- mundo de simulacao (cenario)
+  controllers/
+    goto_avoid/
+      goto_avoid.c            <- controlador de navegacao (FSM)
+      Makefile                <- script de compilacao
+\end{lstlisting}
+
+\begin{table}[H]\centering
+\caption{Artefatos de código e métricas.}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}l l c X@{}}
+\toprule
+\textbf{Arquivo} & \textbf{Linguagem} & \textbf{Linhas} & \textbf{Descrição} \\
+\midrule
+\texttt{worlds/first.wbt} & VRML/PROTO (Webots) & 83 & Arena, obstáculos, alvo e robô (com GPS+IMU). \\
+\texttt{controllers/goto\_avoid/goto\_avoid.c} & C & 163 & Controlador de navegação com máquina de estados. \\
+\texttt{controllers/goto\_avoid/Makefile} & Make & 6 & Compilação via cadeia de ferramentas do Webots. \\
+\midrule
+\textbf{Total} & --- & \textbf{252} & --- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =====================================================================
+\section{Compilação e execução}
+% =====================================================================
+O controlador em C é compilado pela \textbf{cadeia de ferramentas embarcada no Webots} (MinGW-w64), sem dependências externas. Há duas formas:
+
+\noindent\textbf{(a) Pela interface gráfica:} abrir \texttt{worlds/first.wbt} no Webots e pressionar \emph{Play}; o controlador é compilado automaticamente e a simulação inicia.
+
+\noindent\textbf{(b) Por linha de comando (execução \emph{headless}, usada nos testes):}
+\begin{lstlisting}[style=plain,numbers=none]
+set WEBOTS_HOME=C:\Program Files\Webots
+make -C controllers\goto_avoid                 # compila goto_avoid.exe
+webots --batch --mode=fast --no-rendering worlds\first.wbt
+\end{lstlisting}
+A telemetria periódica é gravada em \texttt{controllers/goto\_avoid/run.log}, permitindo a verificação objetiva dos casos de teste.
+
+% =====================================================================
+\section{Listagens}
+% =====================================================================
+\subsection{Mundo de simulação --- \texttt{worlds/first.wbt}}
+Define o sistema de coordenadas, a arena $3\times3$~m, os cinco obstáculos, o marcador de alvo e a instância do robô Khepera~IV, equipada com GPS e unidade inercial no \emph{turret slot} e associada ao controlador \texttt{goto\_avoid}.
+
+\lstinputlisting[style=plain]{../worlds/first.wbt}
+
+\subsection{Controlador de navegação --- \texttt{controllers/goto\_avoid/goto\_avoid.c}}
+Implementa o laço de controle periódico e a máquina de estados (\textsc{Navegar}/\textsc{Girar}/\textsc{Contornar}), incluindo percepção (GPS, IMU, IR), leis de controle, cinemática diferencial e telemetria.
+
+\lstinputlisting[style=c]{../controllers/goto_avoid/goto_avoid.c}
+
+\subsection{Script de compilação --- \texttt{controllers/goto\_avoid/Makefile}}
+\lstinputlisting[style=mk]{../controllers/goto_avoid/Makefile}
+
+% =====================================================================
+\section{Correspondência código $\leftrightarrow$ arquitetura}
+% =====================================================================
+A Tabela~\ref{tab:map} relaciona os principais trechos do controlador aos componentes da arquitetura e aos requisitos atendidos, facilitando a leitura e a avaliação.
+
+\begin{table}[H]\centering
+\caption{Mapa do código para componentes e requisitos.}
+\label{tab:map}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}X l l@{}}
+\toprule
+\textbf{Trecho do código} & \textbf{Componente} & \textbf{Requisitos} \\
+\midrule
+\texttt{wb\_gps\_get\_values}, \texttt{wb\_inertial\_unit\_*} & Percepção/Localização & RF-04 \\
+Leitura dos IR; \texttt{block\_l}, \texttt{block\_r} & Percepção de obstáculos & RF-02 \\
+\texttt{switch(state)} (Navegar/Girar/Contornar) & Arbitragem (FSM) & RF-02, RF-06 \\
+\texttt{steer = K\_HEADING*err + K\_AVOID*\dots} & Controle (lei de rumo) & RF-01, RF-05 \\
+\texttt{vl}, \texttt{vr}, \texttt{wb\_motor\_set\_velocity} & Atuação (cinemática diferencial) & RF-05 \\
+\texttt{if (dist < GOAL\_TOL)} & Detecção de chegada/parada & RF-03 \\
+\texttt{fprintf(logf, \dots)}, \texttt{fflush} & Telemetria & RF-07 \\
+\texttt{while (wb\_robot\_step(dt) != -1)} & Laço periódico (tempo real) & RT-01 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =====================================================================
+\section{Considerações finais}
+% =====================================================================
+O código apresentado é o artefato verificado no Protocolo de Testes, no qual o sistema foi \textbf{aprovado} (missão concluída sem colisões, com escape de mínimo local e respeito ao período do laço). Os parâmetros de controle estão centralizados como constantes no início do controlador, favorecendo a manutenibilidade (RNF-05) e a futura portabilidade para o robô físico (RNF-04), bastando substituir a camada de localização (GPS$\to$odometria).
+
+\end{document}

@@ -1,0 +1,171 @@
+\input{preambulo}
+\newcommand{\tipodoc}{Arquitetura e Projeto do Sistema}
+\newcommand{\datadoc}{30 de junho de 2026}
+
+\begin{document}
+\fazcapa
+\controleversoes
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Introdução}
+% =====================================================================
+\subsection{Propósito e escopo}
+Este documento descreve a \textbf{arquitetura} e o \textbf{projeto detalhado} do \emph{\projnome}, derivando-os dos requisitos especificados no documento de Análise de Requisitos. Cobre o estilo arquitetural, a decomposição em módulos, o comportamento dinâmico (máquina de estados e laço de controle), o projeto algorítmico e as decisões de projeto com sua justificativa.
+
+\subsection{Requisitos arquiteturalmente significativos}
+Influenciam a arquitetura, sobretudo: RNF-01 (segurança/sem colisão), RNF-04 (portabilidade sim$\to$real), RT-01--RT-03 (tempo real) e RF-06 (escape de mínimo local). Estes conduzem a um estilo \emph{reativo em camadas} com isolamento da localização.
+
+% =====================================================================
+\section{Visão arquitetural}
+% =====================================================================
+\subsection{Estilo adotado}
+Adota-se uma \textbf{arquitetura híbrida em \emph{pipeline} (Sentir--Decidir--Atuar) com arbitragem por máquina de estados}, combinando uma camada \emph{deliberativa} mínima (atração ao alvo) e uma camada \emph{reativa} (desvio por proximidade). O estilo \emph{pipe-and-filter} organiza o fluxo de dados percepção$\to$decisão$\to$atuação; a arbitragem por FSM implementa a ideia de subsunção (o desvio subsome a atração quando há obstáculo próximo).
+
+\subsection{Diagrama de componentes}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[
+  comp/.style={draw,rounded corners,minimum height=1.1cm,minimum width=2.6cm,align=center,font=\small,fill=ufamblue!8},
+  io/.style={draw,minimum height=1.1cm,minimum width=2.0cm,align=center,font=\small,fill=gray!12},
+  >={Stealth},node distance=0.9cm and 1.0cm]
+  \node[io] (sens) {Sensores\\IR/GPS/IMU};
+  \node[comp,right=of sens] (perc) {Percepção e\\Estimação de\\estado};
+  \node[comp,right=of perc] (fsm) {Arbitragem\\(FSM)};
+  \node[comp,right=of fsm] (ctrl) {Controle e\\Cinemática};
+  \node[io,right=of ctrl] (mot) {Atuadores\\(motores)};
+  \node[comp,below=1.1cm of fsm] (log) {Telemetria\\(logging)};
+  \draw[->] (sens)--(perc); \draw[->] (perc)--(fsm); \draw[->] (fsm)--(ctrl); \draw[->] (ctrl)--(mot);
+  \draw[->] (perc.south) |- (log.west);
+  \draw[->] (fsm.south) -- (log.north);
+\end{tikzpicture}
+\caption{Componentes do software e fluxo de dados do laço de controle.}
+\label{fig:comp}
+\end{figure}
+
+% =====================================================================
+\section{Decomposição estrutural}
+% =====================================================================
+\begin{table}[H]\centering
+\caption{Módulos, responsabilidades e requisitos atendidos.}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+\textbf{Módulo} & \textbf{Responsabilidade} & \textbf{Requisitos} \\
+\midrule
+Percepção & Ler e condicionar sensores; estimar pose $(x,y,\theta)$ e ``massas'' de obstáculo. & RF-04, RF-02 \\
+Arbitragem (FSM) & Decidir o estado (Navegar/Girar/Contornar) e o comando de alto nível. & RF-02, RF-06 \\
+Controle & Lei de rumo (P) + termo reativo; converter $(v,\omega)$ em rodas. & RF-01, RF-05 \\
+Atuação & Aplicar velocidades aos motores; parada segura. & RF-03, RF-05 \\
+Telemetria & Registrar periodicamente o estado interno em arquivo. & RF-07, RNF-06 \\
+Configuração & Centralizar alvo e parâmetros (constantes). & RF-08, RNF-05 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Comportamento dinâmico: máquina de estados}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=3.4cm,on grid,
+  every state/.style={draw,rounded corners,minimum width=2.2cm,align=center,font=\small}]
+  \node[state] (N) {\textsc{Navegar}\\\scriptsize vai ao alvo};
+  \node[state] (G) [right=of N] {\textsc{Girar}\\\scriptsize gira até limpar};
+  \node[state] (C) [right=of G] {\textsc{Contornar}\\\scriptsize passa a caixa};
+  \path
+    (N) edge[bend left] node[above,font=\scriptsize]{frente $>$ \textsc{trig}} (G)
+    (G) edge[bend left] node[above,font=\scriptsize]{frente $<$ \textsc{clear}} (C)
+    (C) edge[bend left] node[below,font=\scriptsize]{nova parede} (G)
+    (C) edge[bend left=55] node[below,font=\scriptsize]{percorreu $d_p$} (N);
+\end{tikzpicture}
+\caption{Máquina de estados de arbitração (atende RF-02 e RF-06).}
+\label{fig:fsm}
+\end{figure}
+
+\subsection{Laço de controle (visão de atividade)}
+\begin{figure}[H]\centering
+\begin{tikzpicture}[node distance=0.7cm,>={Stealth},
+  act/.style={draw,rounded corners,minimum width=3.4cm,minimum height=0.8cm,align=center,font=\small},
+  dec/.style={draw,diamond,aspect=2,align=center,font=\scriptsize,inner sep=1pt}]
+  \node[act] (t) {Aguarda tique ($T=16$~ms)};
+  \node[act,below=of t] (p) {Lê sensores / estima pose};
+  \node[dec,below=of p] (d) {chegou?};
+  \node[act,below=of d] (f) {Avalia FSM e calcula $(v,\omega)$};
+  \node[act,below=of f] (a) {Aplica velocidades + telemetria};
+  \node[act,right=2.2cm of d] (stop) {Para motores (fim)};
+  \draw[->] (t)--(p); \draw[->] (p)--(d);
+  \draw[->] (d)-- node[right,font=\scriptsize]{não} (f);
+  \draw[->] (d)-- node[above,font=\scriptsize]{sim} (stop);
+  \draw[->] (f)--(a);
+  \draw[->] (a.west) -- ++(-2.0,0) |- (t.west);
+\end{tikzpicture}
+\caption{Atividade do laço de controle periódico (tarefa de tempo real).}
+\label{fig:loop}
+\end{figure}
+
+% =====================================================================
+\section{Projeto detalhado}
+% =====================================================================
+\subsection{Estado interno e parâmetros}
+O estado de execução compreende a pose $(x,y,\theta)$, o estado da FSM, a direção de escape e o ponto de início do contorno. Os parâmetros (alvo, ganhos $K_\theta,K_a$, limiares de IR, $d_p$, período $T$) são constantes centralizadas (RNF-05).
+
+\subsection{Leis de controle}
+A distância e o erro de rumo ao alvo:
+\begin{align}
+  d &= \sqrt{(x_g-x)^2+(y_g-y)^2}, &
+  e_\theta &= \operatorname{wrap}\!\big(\operatorname{atan2}(y_g-y,x_g-x)-\theta\big).
+\end{align}
+No estado \textsc{Navegar}, o comando de giro soma atração (P de rumo) e repulsão reativa:
+\begin{equation}
+  \omega = K_\theta\,e_\theta + K_a\,(b_R-b_L),
+\end{equation}
+com $b_L,b_R$ as massas de obstáculo à esquerda/direita estimadas dos IR acima da linha de base $s_0$. A conversão para rodas (tração diferencial):
+\begin{equation}
+  \dot\phi_L = v-\omega, \qquad \dot\phi_R = v+\omega.
+\end{equation}
+Nos estados \textsc{Girar}/\textsc{Contornar}, o robô fixa a direção de escape e a mantém (compromisso de contorno) até liberar a frente e ultrapassar o obstáculo por $d_p$.
+
+\subsection{Excerto do projeto da FSM}
+\begin{lstlisting}[style=c,caption={Núcleo da máquina de estados.}]
+switch (state) {
+  case NAVEGAR:
+    steer = K_HEADING*err + K_AVOID*(block_r - block_l);
+    forward = CRUISE * slowdown(f, err);
+    if (front > IR_TRIG) { escape_dir = (block_l<=block_r)?+1:-1; state = GIRAR; }
+    break;
+  case GIRAR:
+    forward = 0; steer = escape_dir*SPIN;
+    if (f<IR_CLEAR && fl<IR_CLEAR && fr<IR_CLEAR) { mark(&pass); state = CONTORNAR; }
+    break;
+  case CONTORNAR:
+    forward = 0.7*CRUISE; steer = K_AVOID*(block_r - block_l);
+    if (front > IR_TRIG) state = GIRAR;
+    else if (dist_from(pass) > PASS_DIST) state = NAVEGAR;
+    break;
+}
+\end{lstlisting}
+
+\subsection{Aspectos de tempo real}
+O laço é uma \textbf{tarefa periódica} de período $T=16$~ms e \emph{deadline} $D=T$ (RT-01, RT-02). O projeto evita alocação dinâmica e operações de custo variável no caminho crítico, mantendo o WCET muito inferior a $T$ (RT-03). Em uma futura execução sobre RTOS, o conjunto monotarefa é trivialmente escalonável; havendo tarefas concorrentes (p.ex.\ visão), recomenda-se análise por taxa monotônica (RMS).
+
+% =====================================================================
+\section{Decisões de projeto e justificativa}
+% =====================================================================
+\begin{table}[H]\centering
+\caption{Registro de decisões de arquitetura (ADR).}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}l X X@{}}
+\toprule
+\textbf{Id} & \textbf{Decisão} & \textbf{Justificativa / alternativas} \\
+\midrule
+AD-01 & Linguagem \textbf{C}. & Tempo real e toolchain embarcada no Webots; alternativa Python descartada (sem interpretador instalado, menor previsibilidade). \\
+AD-02 & Arquitetura \textbf{híbrida} reativa+deliberativa. & IR de curto alcance e ausência de mapa tornam planejamento global inviável; puramente reativo é frágil. \\
+AD-03 & \textbf{FSM com contorno comprometido} (Bug/\emph{wall-following}). & Resolve o mínimo local do campo potencial puro (RF-06). \\
+AD-04 & \textbf{GPS+IMU} em simulação. & Isola navegação de localização (RNF-04); plano de migração para odometria no robô real. \\
+AD-05 & \textbf{Calibração empírica} dos sensores. & A leitura real diverge da folha de dados (reflexão do piso); medir é mandatório. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Rastreabilidade arquitetura $\leftrightarrow$ requisitos}
+Os componentes da Figura~\ref{fig:comp} cobrem os requisitos conforme a Tabela~2: Percepção (RF-04, RF-02), FSM (RF-02, RF-06), Controle/Atuação (RF-01, RF-03, RF-05), Telemetria (RF-07, RNF-06); o laço periódico (Figura~\ref{fig:loop}) atende RT-01--RT-03; a estratégia de localização isolada atende RNF-04.
+
+\end{document}

@@ -1,0 +1,194 @@
+\input{preambulo}
+\newcommand{\tipodoc}{Análise de Requisitos}
+\newcommand{\datadoc}{16 de junho de 2026}
+
+\begin{document}
+\fazcapa
+\controleversoes
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Introdução}
+% =====================================================================
+\subsection{Propósito}
+Este documento especifica os requisitos do \emph{\projnome}. Destina-se à equipe de desenvolvimento, ao cliente (coordenação da disciplina) e aos avaliadores, servindo de base contratual para projeto, implementação e verificação.
+
+\subsection{Escopo}
+O produto é o software embarcado que dota o robô Khepera~IV de \textbf{navegação autônoma ponto-a-ponto com desvio de obstáculos}. O software lê sensores (proximidade e localização), decide a ação e comanda os motores, em laço de controle de tempo real, conduzindo o robô de uma posição inicial ao alvo sem colisões.
+
+\subsection{Definições, acrônimos e abreviações}
+\begin{description}[style=nextline,leftmargin=1.2cm,font=\ttfamily]
+  \item[RF] Requisito funcional.
+  \item[RNF] Requisito não funcional.
+  \item[RT] Requisito temporal (tempo real).
+  \item[UC] Caso de uso.
+  \item[Pose] Posição $(x,y)$ e orientação ($\theta$) do robô.
+\end{description}
+
+\subsection{Referências}
+IEEE Std 830-1998 (\emph{Recommended Practice for Software Requirements Specifications}); Sommerville (2019), cap.~4; Documento de Plano de Projeto (companheiro).
+
+\subsection{Visão geral}
+A Seção~\ref{sec:geral} descreve o produto em alto nível; a Seção~\ref{sec:esp} detalha os requisitos; a Seção~\ref{sec:modelos} traz casos de uso; a Seção~\ref{sec:rastr} apresenta a rastreabilidade.
+
+% =====================================================================
+\section{Descrição geral}\label{sec:geral}
+% =====================================================================
+\subsection{Perspectiva do produto}
+O software opera embarcado no robô, interagindo com sensores, atuadores e o ambiente, conforme o diagrama de contexto da Figura~\ref{fig:ctx}.
+
+\begin{figure}[H]\centering
+\begin{tikzpicture}[
+  box/.style={draw,rounded corners,minimum height=0.9cm,minimum width=2.6cm,align=center,font=\small},
+  sys/.style={draw,thick,fill=ufamblue!10,rounded corners,minimum height=1.4cm,minimum width=3.6cm,align=center,font=\small\bfseries},
+  >={Stealth}]
+  \node[sys] (s) {Software de\\Navegação};
+  \node[box] (sens) [left=2.4cm of s] {Sensores\\(IR, GPS, IMU)};
+  \node[box] (act) [right=2.4cm of s] {Atuadores\\(motores das rodas)};
+  \node[box] (op) [above=1.3cm of s] {Operador /\\Cliente};
+  \node[box] (env) [below=1.3cm of s] {Ambiente\\(obstáculos, alvo)};
+  \draw[->] (sens) -- node[above,font=\scriptsize]{leituras} (s);
+  \draw[->] (s) -- node[above,font=\scriptsize]{velocidades} (act);
+  \draw[->] (op) -- node[right,font=\scriptsize]{alvo, parâmetros} (s);
+  \draw[->] (s) -- node[right,font=\scriptsize]{telemetria} (op);
+  \draw[->] (env) -- node[right,font=\scriptsize]{estímulos} (sens.south);
+  \draw[->] (act.south) |- node[below,font=\scriptsize]{movimento} (env.east);
+\end{tikzpicture}
+\caption{Diagrama de contexto do sistema.}
+\label{fig:ctx}
+\end{figure}
+
+\subsection{Funções do produto}
+Em alto nível, o produto: (i) estima a pose do robô; (ii) calcula a direção ao alvo; (iii) detecta obstáculos por proximidade; (iv) decide entre seguir ao alvo, girar ou contornar; (v) comanda as rodas; (vi) detecta a chegada e para; e (vii) registra telemetria.
+
+\subsection{Características dos usuários}
+O usuário-operador possui conhecimento técnico básico de robótica; interage definindo o alvo e os parâmetros e observando a telemetria. Não há interação durante a missão (operação autônoma).
+
+\subsection{Restrições gerais}
+Linguagem C; plataforma Khepera~IV; sensoriamento de curto alcance; ausência de mapa prévio; execução em laço periódico de tempo real.
+
+\subsection{Suposições e dependências}
+Ambiente estático e plano; alvo alcançável (existe caminho livre); disponibilidade da localização (GPS/IMU em simulação; odometria no robô real).
+
+% =====================================================================
+\section{Requisitos específicos}\label{sec:esp}
+% =====================================================================
+\subsection{Requisitos funcionais}
+\begin{table}[H]\centering
+\caption{Requisitos funcionais.}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}l X c@{}}
+\toprule
+\textbf{Id} & \textbf{Descrição} & \textbf{Prior.} \\
+\midrule
+RF-01 & O sistema deve conduzir o robô de uma posição inicial a uma posição-alvo definida por coordenadas. & Essencial \\
+RF-02 & O sistema deve desviar autonomamente de obstáculos estáticos presentes no percurso. & Essencial \\
+RF-03 & O sistema deve detectar a chegada ao alvo (dentro de tolerância) e parar com segurança. & Essencial \\
+RF-04 & O sistema deve estimar a pose do robô (posição e orientação). & Essencial \\
+RF-05 & O sistema deve comandar as velocidades das rodas (tração diferencial). & Essencial \\
+RF-06 & O sistema deve recuperar-se de situações de aprisionamento (mínimo local). & Importante \\
+RF-07 & O sistema deve registrar telemetria periódica (estado, pose, sensores, comandos). & Importante \\
+RF-08 & O sistema deve permitir a configuração do alvo e dos parâmetros de controle. & Desejável \\
+RF-09 & O sistema deve sinalizar/identificar o estado interno de navegação. & Desejável \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Requisitos não funcionais}
+\begin{table}[H]\centering
+\caption{Requisitos não funcionais.}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Id} & \textbf{Categoria} & \textbf{Descrição} \\
+\midrule
+RNF-01 & Segurança & Operar sem colisões com obstáculos ou paredes. \\
+RNF-02 & Desempenho & Alcançar o alvo em tempo finito e limitado para o cenário especificado. \\
+RNF-03 & Confiabilidade & Comportamento determinístico e repetível entre execuções. \\
+RNF-04 & Portabilidade & Permitir migração simulação $\to$ robô físico, isolando a localização. \\
+RNF-05 & Manutenibilidade & Código modular, com parâmetros centralizados e documentados. \\
+RNF-06 & Observabilidade & Prover telemetria persistente para diagnóstico (registro em arquivo). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Requisitos temporais (tempo real)}
+\begin{table}[H]\centering
+\caption{Requisitos de tempo real.}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\toprule
+\textbf{Id} & \textbf{Descrição} \\
+\midrule
+RT-01 & O laço de controle deve executar como tarefa periódica de período $T=16$~ms. \\
+RT-02 & A cada ciclo, a sequência percepção$\to$decisão$\to$atuação deve respeitar o \emph{deadline} $D=T$. \\
+RT-03 & O WCET do ciclo deve ser significativamente inferior a $T$, garantindo folga para \emph{jitter}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Requisitos de interface}
+\textbf{Hardware:} 5 sensores IR frontais/laterais (proximidade); GPS e IMU (localização, em simulação); dois motores de roda em modo de velocidade. \textbf{Software:} API de controladores do Webots (\texttt{wb\_*}); arquivo de telemetria em texto.
+
+% =====================================================================
+\section{Modelos: casos de uso}\label{sec:modelos}
+% =====================================================================
+\begin{figure}[H]\centering
+\begin{tikzpicture}[uc/.style={draw,ellipse,minimum width=3.2cm,minimum height=1cm,align=center,font=\small},>={Stealth}]
+  % ator
+  \node (a) at (0,0) {\begin{tikzpicture}[scale=0.5]
+    \draw[thick] (0,1) circle(0.25);
+    \draw[thick] (0,0.75)--(0,-0.1);
+    \draw[thick] (-0.4,0.5)--(0.4,0.5);
+    \draw[thick] (0,-0.1)--(-0.35,-0.7);
+    \draw[thick] (0,-0.1)--(0.35,-0.7);
+  \end{tikzpicture}};
+  \node[below=0cm of a,font=\small] {Operador};
+  % fronteira do sistema
+  \node[uc] (u1) at (4,1.6) {UC-01\\Executar missão};
+  \node[uc] (u2) at (4,0) {UC-02\\Configurar alvo/parâm.};
+  \node[uc] (u3) at (4,-1.6) {UC-03\\Monitorar telemetria};
+  \begin{scope}[on background layer]
+    \node[draw,dashed,fit=(u1)(u2)(u3),inner sep=10pt,label=above:{\small Sistema de Navegação}] {};
+  \end{scope}
+  \draw (a) -- (u1); \draw (a) -- (u2); \draw (a) -- (u3);
+\end{tikzpicture}
+\caption{Diagrama de casos de uso.}
+\label{fig:uc}
+\end{figure}
+
+\noindent\textbf{UC-01 --- Executar missão de navegação.}
+\emph{Ator:} Operador. \emph{Pré-condição:} alvo configurado; robô na posição inicial. \emph{Fluxo principal:} (1) operador inicia a execução; (2) o sistema entra no laço de controle; (3) a cada ciclo estima a pose, avalia obstáculos e atua; (4) ao detectar a chegada, para. \emph{Pós-condição:} robô no alvo, sem colisões. \emph{Fluxo alternativo:} obstáculo frontal $\Rightarrow$ contorno; mínimo local $\Rightarrow$ manobra de escape.
+
+\noindent\textbf{UC-02 --- Configurar alvo e parâmetros.} O operador define coordenadas do alvo e ganhos/limiares antes da missão.
+
+\noindent\textbf{UC-03 --- Monitorar telemetria.} O operador acompanha o registro periódico (estado, pose, distância, sensores).
+
+% =====================================================================
+\section{Matriz de rastreabilidade}\label{sec:rastr}
+% =====================================================================
+A Tabela~\ref{tab:rastr} relaciona requisitos, objetivos e casos de teste (definidos no Plano de Testes), assegurando cobertura e verificabilidade.
+
+\begin{table}[H]\centering
+\caption{Rastreabilidade requisitos $\leftrightarrow$ casos de uso $\leftrightarrow$ testes.}
+\label{tab:rastr}
+\begin{tabularx}{\textwidth}{@{}l X l l@{}}
+\toprule
+\textbf{Requisito} & \textbf{Verificação} & \textbf{UC} & \textbf{Teste} \\
+\midrule
+RF-01 & Robô atinge o alvo em cenário livre & UC-01 & CT-01 \\
+RF-02 & Desvio de obstáculo único e múltiplo & UC-01 & CT-02, CT-03 \\
+RF-03 & Parada dentro da tolerância & UC-01 & CT-01 \\
+RF-06 & Escape de alvo atrás de parede & UC-01 & CT-04 \\
+RF-07 & Telemetria gravada em arquivo & UC-03 & CT-06 \\
+RNF-01 & Ausência de colisões no slalom & UC-01 & CT-03 \\
+RT-01 & Período de laço medido $=16$~ms & --- & CT-05 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Critérios de aceitação}
+O produto será aceito se: (i) atingir o alvo no cenário de 5 obstáculos sem colisões (RF-01, RF-02, RNF-01); (ii) parar dentro da tolerância (RF-03); (iii) respeitar o período de tempo real (RT-01); e (iv) registrar telemetria verificável (RF-07).
+
+\end{document}

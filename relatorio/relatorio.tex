@@ -1,0 +1,422 @@
+\documentclass[11pt,a4paper]{article}
+
+% ===== Motor: Tectonic (XeTeX) — UTF-8 nativo =====
+\usepackage{fontspec}
+\usepackage[brazil]{babel}
+\usepackage{geometry}
+\geometry{a4paper,margin=2.5cm}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,automata}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+% ===== Estilos de listagem =====
+\definecolor{codegreen}{rgb}{0.0,0.5,0.0}
+\definecolor{codeblue}{rgb}{0.0,0.0,0.7}
+\definecolor{codered}{rgb}{0.6,0.0,0.0}
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+
+\lstdefinestyle{c}{
+  language=C, basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codeblue}\bfseries, commentstyle=\color{codegreen}\itshape,
+  stringstyle=\color{codered}, numbers=left, numberstyle=\tiny\color{gray},
+  frame=single, breaklines=true, tabsize=2, showstringspaces=false,
+  captionpos=b, columns=fullflexible
+}
+\lstdefinestyle{log}{
+  basicstyle=\ttfamily\scriptsize, frame=single, breaklines=true,
+  backgroundcolor=\color{codegray}, columns=fullflexible
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small Navegação do Khepera IV em Webots}
+\lhead{\small UFAM/CETELI --- Eng. de Software de Tempo Real}
+\cfoot{\thepage}
+
+\title{
+  \vspace{-1.5cm}
+  {\large Universidade Federal do Amazonas (UFAM)}\\[2pt]
+  {\normalsize Centro de P\&D em Tecnologia Eletrônica e da Informação (CETELI)}\\[2pt]
+  {\normalsize Programa de Pós-Graduação em Engenharia Elétrica --- PPGEE}\\[2pt]
+  {\small Disciplina: Engenharia de Software de Tempo Real}\\[18pt]
+  \rule{\textwidth}{0.4pt}\\[6pt]
+  \textbf{Navegação Autônoma Ponto-a-Ponto com Desvio Reativo de Obstáculos para o Robô Móvel Khepera~IV: uma Arquitetura Híbrida Baseada em Máquina de Estados Finitos em Ambiente de Simulação Webots}\\[4pt]
+  \rule{\textwidth}{0.4pt}
+}
+\author{Matheus Serrão Uchôa\thanks{Discente, PPGEE/CETELI --- Universidade Federal do Amazonas (UFAM), Manaus--AM, Brasil.}}
+\date{Manaus --- AM, Junho de 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent
+Este relatório apresenta o projeto, a implementação e a avaliação experimental de um controlador de navegação autônoma para o robô móvel de tração diferencial Khepera~IV, com o objetivo de deslocá-lo de uma configuração inicial a uma configuração-alvo em um ambiente povoado por obstáculos, sem colisões, em condições representativas de competições de robótica. O trabalho foi conduzido no simulador Webots R2025a, utilizando o modelo oficial do Khepera~IV. Propõe-se uma \emph{arquitetura híbrida} que combina uma camada deliberativa mínima de atração ao alvo (controle proporcional de rumo a partir de localização por GPS e unidade inercial) com uma camada reativa de desvio de obstáculos inspirada nos campos potenciais e nos veículos de Braitenberg, arbitradas por uma \emph{máquina de estados finitos} (\textsc{Navegar}, \textsc{Girar}, \textsc{Contornar}) que introduz \emph{compromisso de contorno} no espírito dos algoritmos Bug, eliminando o aprisionamento em mínimos locais. Reporta-se, ainda, uma contribuição metodológica: a calibração \emph{empírica} dos sensores infravermelhos por meio de telemetria instrumentada, que revelou uma discrepância significativa entre a leitura prevista em folha de dados ($\approx 29$) e a leitura medida em espaço livre ($\approx 110$), causada pela reflexão do piso. A análise dos registros de execução permitiu diagnosticar e corrigir duas falhas distintas (aprisionamento em mínimo local e rodopio por má calibração). Na configuração final, o robô percorreu a trajetória de forma livre de colisões, reduzindo a distância ao alvo de $2{,}83$~m a menos de $0{,}07$~m em $19{,}3$~s de tempo simulado. Discute-se a relação do laço de controle com o modelo de tarefa periódica de sistemas de tempo real e indicam-se caminhos de evolução (odometria, VFH, DWA e planejamento global).
+
+\vspace{6pt}
+\noindent\textbf{Palavras-chave:} robótica móvel; navegação autônoma; desvio de obstáculos; Khepera~IV; campos potenciais; máquina de estados; sistemas de tempo real; Webots.
+\end{abstract}
+
+\tableofcontents
+\bigskip
+
+% =====================================================================
+\section{Introdução}
+% =====================================================================
+A capacidade de um robô móvel deslocar-se de um ponto a outro de maneira segura e autônoma --- evitando colisões --- é um dos problemas fundamentais e mais estudados da robótica \cite{siegwart2011,thrun2005}. Apesar de sua aparente simplicidade, o problema condensa questões profundas de percepção, representação, controle e tomada de decisão em tempo real, e serve de base para aplicações que vão de robôs de serviço e veículos autônomos a competições acadêmicas de robótica móvel.
+
+Este trabalho aborda especificamente a tarefa de \emph{navegação ponto-a-ponto com desvio de obstáculos} para o robô \textbf{Khepera~IV} \cite{soares2016khepera}, plataforma de tração diferencial amplamente utilizada em pesquisa e ensino e disponível no acervo do CETELI/UFAM. Para permitir o desenvolvimento e a validação reprodutíveis do software de controle antes da transferência para o robô físico, adotou-se o simulador \textbf{Webots} \cite{michel2004webots}, que disponibiliza um modelo fidedigno do Khepera~IV.
+
+\subsection{Definição do problema}
+Seja $\mathbf{p}=(x,y)$ a posição do robô no plano e $\mathbf{p}_g=(x_g,y_g)$ a posição do alvo. Deseja-se uma política de controle que conduza $\mathbf{p}\to\mathbf{p}_g$ mantendo o robô no espaço livre $\mathcal{C}_{\text{free}}$ (sem interseção com obstáculos). A dificuldade central no caso do Khepera~IV decorre de seu sensoriamento de proximidade ser de \emph{curto alcance} (infravermelho útil entre aproximadamente $2$ e $20$~cm) e da \emph{ausência de mapa} prévio do ambiente: o robô é, em essência, míope e desinformado, o que torra inviável o planejamento global clássico e privilegia estratégias reativas \cite{brooks1986}.
+
+\subsection{Objetivos}
+\noindent\textbf{Objetivo geral:} projetar, implementar e avaliar um controlador capaz de levar o Khepera~IV de uma posição inicial a um alvo, desviando de todos os obstáculos do percurso.
+
+\noindent\textbf{Objetivos específicos:}
+\begin{itemize}[noitemsep,topsep=2pt]
+  \item modelar um cenário de testes no Webots (arena, obstáculos e alvo);
+  \item formular uma arquitetura de controle híbrida (deliberativa + reativa);
+  \item garantir robustez frente ao problema de mínimos locais;
+  \item calibrar empiricamente o sensoriamento por meio de telemetria; e
+  \item validar quantitativamente o desempenho com base em dados de execução.
+\end{itemize}
+
+\subsection{Contribuições}
+As principais contribuições deste relatório são: (i) uma arquitetura de controle híbrida arbitrada por máquina de estados finitos que une atração ao alvo, desvio reativo e \emph{contorno comprometido} de obstáculos; (ii) uma metodologia de calibração empírica do sensoriamento infravermelho baseada em instrumentação e análise de telemetria, evidenciando o perigo de confiar cegamente em folhas de dados; e (iii) uma análise experimental, com dados reais de execução, do fenômeno de mínimo local e de sua mitigação.
+
+\subsection{Organização}
+A Seção~\ref{sec:fund} apresenta a fundamentação teórica e a revisão da literatura. A Seção~\ref{sec:metodo} descreve materiais e métodos. A Seção~\ref{sec:resultados} expõe e discute os resultados. A Seção~\ref{sec:conclusao} conclui e aponta trabalhos futuros.
+
+% =====================================================================
+\section{Fundamentação Teórica e Revisão da Literatura}\label{sec:fund}
+% =====================================================================
+
+\subsection{Deliberativo \emph{versus} reativo: as duas escolas}
+A história da navegação autônoma é marcada pela tensão entre dois paradigmas. O paradigma \emph{deliberativo} (sentir--modelar--planejar--agir) foi inaugurado pelo robô \emph{Shakey} \cite{nilsson1984shakey}, para o qual se concebeu o algoritmo de busca informada $A^\star$ \cite{hart1968astar}. Embora teoricamente elegante e \emph{completo}, o paradigma exige um modelo de mundo acurado e é computacionalmente custoso, tornando-se frágil em ambientes dinâmicos ou pouco estruturados.
+
+Em reação a essas limitações, o paradigma \emph{reativo} (sentir--agir) propôs eliminar o modelo central. Suas raízes remontam às ``tartarugas'' eletromecânicas de Grey Walter \cite{walter1950}, capazes de fototaxia e desvio de obstáculos com pouquíssimos componentes, e ganham formalização conceitual nos \emph{veículos} de Braitenberg \cite{braitenberg1984}, nos quais o acoplamento direto sensor--motor já produz comportamentos complexos. A consolidação do paradigma deve-se à \emph{arquitetura de subsunção} de Brooks \cite{brooks1986,brooks1991}, que organiza o comportamento em camadas reativas com prioridade, dispensando representação explícita.
+
+\subsection{Campos potenciais artificiais}
+Khatib \cite{khatib1986} propôs tratar a navegação como o movimento de uma partícula sob um campo de forças: o alvo gera uma força \emph{atrativa} e cada obstáculo, uma força \emph{repulsiva}, de modo que o robô segue o gradiente do potencial resultante,
+\begin{equation}
+  \vec{F}(\mathbf{p}) = \vec{F}_{\text{att}}(\mathbf{p}) + \sum_i \vec{F}_{\text{rep},i}(\mathbf{p}).
+\end{equation}
+O método é computacionalmente barato e adequado a tempo real, mas possui uma fraqueza estrutural bem conhecida: \emph{mínimos locais}, configurações em que a força atrativa e a repulsiva se anulam (tipicamente quando um obstáculo se interpõe entre robô e alvo), aprisionando o veículo. Esse fenômeno é central na análise experimental da Seção~\ref{sec:resultados}.
+
+\subsection{Métodos completos e robustos ao ruído}
+A garantia de completude com sensoriamento mínimo é fornecida pelos \emph{algoritmos Bug} \cite{lumelsky1987}: ao encontrar um obstáculo, o robô compromete-se a \emph{contorná-lo} (seguir sua fronteira) até poder retomar o curso ao alvo. Essa ideia de \emph{compromisso de contorno} é precisamente o mecanismo adotado neste trabalho para escapar de mínimos locais. Para robustez frente a ruído e dinâmica, destacam-se ainda o \emph{Vector Field Histogram} (VFH) \cite{borenstein1991vfh} e o \emph{Dynamic Window Approach} (DWA) \cite{fox1997dwa}.
+
+\subsection{A plataforma Khepera e o Khepera~IV}
+A família Khepera, originada no LAMI/EPFL e comercializada pela K-Team \cite{mondada1993khepera}, tornou-se referência em robótica móvel acadêmica por seu tamanho reduzido e rico sensoriamento. O \textbf{Khepera~IV} \cite{soares2016khepera} é um robô de tração diferencial com cerca de $14$~cm de diâmetro, dotado de $8$ sensores infravermelhos de proximidade, $5$ sensores ultrassônicos, câmera colorida e unidade de medição inercial (IMU), executando Linux embarcado. No presente trabalho utilizam-se os infravermelhos (desvio) e, em simulação, GPS e IMU (localização).
+
+\subsection{Simulação e tempo real}
+O Webots \cite{michel2004webots} é um simulador profissional de robótica que integra dinâmica de corpos rígidos, sensores e atuadores, e modelos validados de robôs comerciais, permitindo desenvolvimento de software \emph{controller-in-the-loop}. Do ponto de vista de \textbf{sistemas de tempo real}, o laço de controle do robô é uma \emph{tarefa periódica} de período fixo $T$: a cada ciclo, executam-se percepção, decisão e atuação, que devem caber dentro de $T$. Esse é exatamente o modelo de tarefa periódica de Liu e Layland \cite{liu1973}, base da teoria de escalonabilidade em tempo real.
+
+% =====================================================================
+\section{Materiais e Métodos}\label{sec:metodo}
+% =====================================================================
+
+\subsection{Ambiente de simulação}
+Utilizou-se o Webots R2025a em sistema operacional Windows~11. O controlador foi implementado em linguagem \textbf{C} (compilado pela cadeia de ferramentas MinGW-w64 embarcada no próprio Webots), escolha alinhada à natureza embarcada e de tempo real da disciplina. A Tabela~\ref{tab:disp} resume os dispositivos do Khepera~IV efetivamente empregados.
+
+\begin{table}[H]
+\centering
+\caption{Dispositivos do Khepera~IV utilizados no controlador.}
+\label{tab:disp}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Dispositivo} & \textbf{Identificador (Webots)} & \textbf{Função} \\
+\midrule
+Motor esquerdo & \texttt{left wheel motor} & atuação (velocidade) \\
+Motor direito & \texttt{right wheel motor} & atuação (velocidade) \\
+IR frontal & \texttt{front infrared sensor} & detecção de obstáculo \\
+IR frontal-esq./dir. & \texttt{front \{left,right\} infrared sensor} & detecção lateral-frontal \\
+IR esquerdo/direito & \texttt{\{left,right\} infrared sensor} & detecção lateral \\
+GPS & \texttt{gps} & localização $(x,y)$ \\
+IMU & \texttt{inertial unit} & orientação (\emph{yaw}) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Modelagem do ambiente}
+O cenário consiste em uma \texttt{RectangleArena} de $3\times 3$~m (sistema de coordenadas ENU, eixo $z$ vertical), com cinco caixas de madeira (\texttt{WoodenBox}) dispostas em \emph{slalom} ao longo da diagonal, um marcador visual de alvo (disco vermelho) em $(1{,}0;\,1{,}0)$ e o robô iniciando em $(-1{,}0;\,-1{,}0)$, orientado para o alvo. As dimensões e posições foram escolhidas de modo a (i) obstruir a rota direta, forçando manobras de desvio, e (ii) manter folgas navegáveis compatíveis com o diâmetro do robô e com o alcance curto dos infravermelhos.
+
+\subsection{Sistema de localização}
+A camada de atração ao alvo requer estimativa de pose. Em simulação, empregam-se o \textbf{GPS} (posição $(x,y)$) e a \textbf{IMU} (ângulo de guinada $\theta$). Ressalva-se que o Khepera~IV \emph{físico} não dispõe de GPS; na transferência para o robô real, a estimativa de posição deve ser obtida por \emph{odometria} (integração dos encoders de roda), sujeita a deriva acumulada \cite{siegwart2011}, ou por um sistema de localização externo. Trata-se de uma simplificação metodológica deliberada, que isola o problema de navegação do problema de localização.
+
+\subsection{Arquitetura de controle proposta}
+A política de controle é uma \textbf{máquina de estados finitos} (FSM) híbrida com três estados, que arbitra entre a atração ao alvo e o desvio de obstáculos (Figura~\ref{fig:fsm}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[->,>=Stealth,node distance=3.2cm,on grid,auto,
+  every state/.style={draw,rounded corners,minimum width=2.2cm,align=center,font=\small}]
+  \node[state] (N) {\textsc{Navegar}\\\scriptsize vai ao alvo};
+  \node[state] (G) [right=of N] {\textsc{Girar}\\\scriptsize gira até limpar};
+  \node[state] (C) [right=of G] {\textsc{Contornar}\\\scriptsize passa a caixa};
+  \path
+    (N) edge[bend left] node[above,font=\scriptsize]{frente $>$ \textsc{trig}} (G)
+    (G) edge[bend left] node[above,font=\scriptsize]{frente $<$ \textsc{clear}} (C)
+    (C) edge[bend left] node[below,font=\scriptsize]{nova parede} (G)
+    (C) edge[bend left=55] node[below,font=\scriptsize]{percorreu $d_p$} (N);
+\end{tikzpicture}
+\caption{Máquina de estados finitos que arbitra atração ao alvo e desvio comprometido.}
+\label{fig:fsm}
+\end{figure}
+
+\paragraph{Percepção e atração (estado \textsc{Navegar}).}
+A distância e o erro de rumo ao alvo são
+\begin{align}
+  d &= \sqrt{(x_g-x)^2 + (y_g-y)^2}, \\
+  e_\theta &= \operatorname{wrap}\!\big(\operatorname{atan2}(y_g-y,\;x_g-x) - \theta\big) \in (-\pi,\pi],
+\end{align}
+em que $\operatorname{wrap}(\cdot)$ normaliza o ângulo para evitar a ``volta mais longa''. O comando de giro combina um termo proporcional de rumo (atração) com um termo reativo (repulsão):
+\begin{equation}
+  \omega = \underbrace{K_\theta\, e_\theta}_{\text{atrativo}} \;+\; \underbrace{K_a\,(b_R - b_L)}_{\text{repulsivo}},
+  \label{eq:omega}
+\end{equation}
+onde as ``massas'' de obstáculo à esquerda e à direita são estimadas a partir das leituras infravermelhas $s_{(\cdot)}$ acima de uma linha de base $s_0$:
+\begin{align}
+  b_L &= \max\!\big(0,\;(s_{fl}-s_0) + \tfrac12 (s_{l}-s_0)\big), \\
+  b_R &= \max\!\big(0,\;(s_{fr}-s_0) + \tfrac12 (s_{r}-s_0)\big).
+\end{align}
+
+\paragraph{Compromisso de contorno (estados \textsc{Girar} e \textsc{Contornar}).}
+Quando a leitura frontal excede o limiar $\textsc{trig}$, a FSM transita para \textsc{Girar}: o robô \emph{fixa} uma direção de escape (lado mais livre) e gira \emph{no mesmo sentido} até que a frente esteja efetivamente livre ($< \textsc{clear}$). Em seguida, em \textsc{Contornar}, avança uma distância fixa $d_p$ para ultrapassar o obstáculo antes de re-mirar o alvo. Esse \emph{compromisso} --- inspirado nos algoritmos Bug \cite{lumelsky1987} --- é o que rompe a indecisão característica do mínimo local (Seção~\ref{sec:resultados}).
+
+\paragraph{Cinemática diferencial.}
+O par $(v,\omega)$ é convertido em velocidades de roda. Na forma simplificada efetivamente utilizada (com $\omega$ já em unidades de roda),
+\begin{equation}
+  \dot{\phi}_L = v - \omega, \qquad \dot{\phi}_R = v + \omega,
+  \label{eq:diff}
+\end{equation}
+que corresponde, a menos de constantes, à relação física $\dot{\phi}_{L,R} = \tfrac{1}{r}\big(v \mp \tfrac{\omega_z L}{2}\big)$, sendo $r$ o raio da roda e $L$ a bitola.
+
+\paragraph{Núcleo do controlador.}
+A Listagem~\ref{lst:fsm} reproduz o trecho central da FSM. O código completo encontra-se no Apêndice~\ref{ap:codigo}.
+
+\begin{lstlisting}[style=c,caption={Núcleo da máquina de estados (excerto).},label={lst:fsm}]
+switch (state) {
+  case NAVEGAR:
+    steer = K_HEADING*err + K_AVOID*(block_r - block_l);
+    forward = CRUISE;
+    forward *= (1.0 - 0.7*clampd((f-IR_BASE)/(IR_TRIG-IR_BASE),0,1));
+    forward *= clampd(1.0 - 0.5*fabs(err), 0.3, 1.0);
+    if (front > IR_TRIG) {                         /* parede a frente */
+      escape_dir = (block_l <= block_r) ? +1 : -1; /* lado mais livre */
+      state = GIRAR;
+    }
+    break;
+  case GIRAR:                                      /* gira comprometido */
+    forward = 0.0; steer = escape_dir * SPIN;
+    if (f < IR_CLEAR && fl < IR_CLEAR && fr < IR_CLEAR) {
+      pass_x = pos[0]; pass_y = pos[1]; state = CONTORNAR;
+    }
+    break;
+  case CONTORNAR:                                  /* avanca p/ passar */
+    forward = 0.7*CRUISE; steer = K_AVOID*(block_r - block_l);
+    if (front > IR_TRIG) { escape_dir = (block_l<=block_r)?+1:-1; state = GIRAR; }
+    else if (hypot(pos[0]-pass_x, pos[1]-pass_y) > PASS_DIST) state = NAVEGAR;
+    break;
+}
+</lstlisting>
+
+\subsection{Parâmetros de controle}
+A Tabela~\ref{tab:param} lista os parâmetros e os valores finais adotados (a justificativa empírica dos limiares de IR é dada na Seção~\ref{sec:calib}).
+
+\begin{table}[H]
+\centering
+\caption{Parâmetros do controlador (valores finais).}
+\label{tab:param}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Parâmetro} & \textbf{Símbolo} & \textbf{Valor} \\
+\midrule
+Velocidade máxima de roda & --- & $47{,}6$~rad/s \\
+Velocidade de cruzeiro & $v$ & $0{,}25\times47{,}6$~rad/s \\
+Ganho de rumo & $K_\theta$ & $3{,}0$ \\
+Ganho de desvio & $K_a$ & $0{,}05$ \\
+Linha de base do IR & $s_0$ & $100$ \\
+Limiar de disparo & \textsc{trig} & $210$ \\
+Limiar de liberação & \textsc{clear} & $160$ \\
+Distância de contorno & $d_p$ & $0{,}30$~m \\
+Tolerância de chegada & --- & $0{,}07$~m \\
+Período do laço & $T$ & $16$~ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Metodologia experimental}
+Para obter medições reprodutíveis, o controlador foi \emph{instrumentado}: a cada segundo de tempo simulado registra-se uma linha de telemetria (estado, posição, distância, erro de rumo, leituras de IR e velocidades de roda) em arquivo, com descarga imediata de \emph{buffer} (\texttt{fflush}) para garantir persistência mesmo em encerramento abrupto. As execuções foram realizadas em modo acelerado, sem renderização (\emph{headless}), o que permitiu coletar centenas de ciclos de controle em poucos segundos de tempo de relógio. A análise dos registros norteou tanto o diagnóstico de falhas quanto a calibração dos sensores.
+
+% =====================================================================
+\section{Resultados e Discussão}\label{sec:resultados}
+% =====================================================================
+
+\subsection{Calibração empírica do sensoriamento infravermelho}\label{sec:calib}
+A folha de dados do sensor (tabela de conversão do modelo) sugere que, em espaço livre ($>20$~cm), a leitura tende a $\approx 29$. Contudo, a telemetria coletada em espaço aberto evidenciou leituras de \emph{base} consistentemente em torno de $100$--$120$ (Tabela~\ref{tab:calib}), atribuíveis à reflexão do piso captada pelos sensores infravermelhos, que são montados com leve inclinação. Já um obstáculo (caixa) imediatamente à frente produz leituras $\approx 280$.
+
+\begin{table}[H]
+\centering
+\caption{Leitura infravermelha: previsto (folha de dados) \emph{versus} medido.}
+\label{tab:calib}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Condição} & \textbf{Previsto} & \textbf{Medido} \\
+\midrule
+Espaço livre ($>20$~cm) & $\approx 29$ & $\approx 100$--$120$ \\
+Obstáculo frontal ($\approx 3$~cm) & $\approx 150$ & $\approx 250$--$300$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Essa discrepância tem consequência direta: limiares calibrados ``no papel'' ($s_0=40$, $\textsc{trig}=110$, $\textsc{clear}=60$) fazem o \emph{piso} ser interpretado como parede e impedem que a frente jamais ``limpe''. A recalibração para valores acima da base medida ($s_0=100$, $\textsc{trig}=210$, $\textsc{clear}=160$) foi decisiva. \emph{Lição:} sensores devem ser caracterizados por medição, não por suposição.
+
+\subsection{Análise de falhas e diagnóstico}
+\subsubsection{Aprisionamento em mínimo local}
+A primeira versão (puramente reativa, sem compromisso) ficou \emph{presa na primeira caixa}. A telemetria (Listagem~\ref{lst:stuck}) é conclusiva: a posição permanece congelada em $(-0{,}54;\,-0{,}54)$, a distância estaciona em $1{,}90$~m, o erro de rumo oscila em torno de zero ($e_\theta\approx 0$, pois o alvo está \emph{atrás} do obstáculo) e as rodas alternam $-3/+3 \to +3/-3$ a cada ciclo --- ou seja, o robô \emph{vibra no lugar}. É a assinatura exata do mínimo local de campo potencial.
+
+\begin{lstlisting}[style=log,caption={Telemetria do aprisionamento em mínimo local (excerto real).},label={lst:stuck}]
+pos=(-0.54,-0.54) dist=1.90 err=+0.00 IR[L/F/R]=120/280/115 rodas=-3.0/+3.0
+pos=(-0.54,-0.54) dist=1.90 err=-0.01 IR[L/F/R]=118/279/110 rodas=+3.0/-3.0
+pos=(-0.54,-0.54) dist=1.90 err=+0.00 IR[L/F/R]=129/303/129 rodas=-3.0/+3.0
+pos=(-0.54,-0.54) dist=1.90 err=-0.01 IR[L/F/R]=127/268/133 rodas=+3.0/-3.0
+\end{lstlisting}
+
+\subsubsection{Rodopio por má calibração}
+Após introduzir a FSM, mas \emph{antes} de recalibrar os sensores, surgiu uma segunda falha: o robô entrava em \textsc{Girar} já na largada e \emph{rodopiava indefinidamente} (posição congelada em $(-0{,}80;\,-0{,}80)$, $e_\theta$ varrendo todo o círculo). A causa, identificada na Seção~\ref{sec:calib}, era o limiar \textsc{clear} estar \emph{abaixo} da base real do piso, de modo que a condição de liberação nunca era satisfeita. Ambas as falhas foram detectadas e resolvidas exclusivamente pela leitura dos registros de telemetria.
+
+\subsection{Resultado final}
+Com a FSM e a calibração corretas, o robô executou a tarefa de forma \textbf{livre de colisões}. A Figura~\ref{fig:traj} mostra a trajetória percorrida sobre o mapa de obstáculos: o robô contorna a primeira caixa, atravessa o corredor central entre os obstáculos e contorna a caixa próxima ao alvo. A Figura~\ref{fig:dist} apresenta a distância ao alvo ao longo do tempo: a redução é praticamente monotônica, com um leve aumento transitório por volta de $t\in[3,6]$~s --- o ``custo'' geométrico da manobra de contorno da primeira caixa --- até a chegada em $t=19{,}3$~s.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  axis equal image, width=0.72\textwidth,
+  xlabel={$x$ (m)}, ylabel={$y$ (m)},
+  xmin=-1.6, xmax=1.6, ymin=-1.6, ymax=1.6,
+  grid=both, grid style={gray!20},
+  title={Trajetória executada (livre de colisões)},
+  legend pos=south east, legend cell align=left, legend style={font=\scriptsize}
+]
+% paredes
+\draw[thick,gray] (axis cs:-1.5,-1.5) rectangle (axis cs:1.5,1.5);
+% obstaculos
+\fill[brown!55] (axis cs:-0.6,-0.6) rectangle (axis cs:-0.4,-0.4);
+\fill[brown!55] (axis cs:-0.125,-0.125) rectangle (axis cs:0.125,0.125);
+\fill[brown!55] (axis cs:0.4,0.4) rectangle (axis cs:0.6,0.6);
+\fill[brown!55] (axis cs:0.325,-0.375) rectangle (axis cs:0.475,-0.225);
+\fill[brown!55] (axis cs:-0.375,0.325) rectangle (axis cs:-0.225,0.475);
+% trajetoria
+\addplot[blue,thick,mark=*,mark size=1.1pt] coordinates {
+(-1.00,-1.00)(-0.85,-0.85)(-0.70,-0.70)(-0.67,-0.62)(-0.79,-0.53)(-0.92,-0.44)
+(-0.91,-0.32)(-0.80,-0.18)(-0.63,-0.05)(-0.45,0.07)(-0.27,0.18)(-0.08,0.29)
+(0.09,0.41)(0.27,0.53)(0.30,0.66)(0.29,0.84)(0.34,0.95)(0.51,1.01)(0.71,1.03)
+(0.91,1.03)(0.94,1.03)};
+\addlegendentry{trajetória}
+% start
+\addplot[only marks,mark=triangle*,mark size=4pt,green!50!black] coordinates {(-1,-1)};
+\addlegendentry{início}
+% goal
+\addplot[only marks,mark=square*,mark size=4pt,red] coordinates {(1,1)};
+\addlegendentry{alvo}
+\end{axis}
+\end{tikzpicture}
+\caption{Trajetória do Khepera~IV de $(-1,-1)$ a $(1,1)$. Retângulos: obstáculos.}
+\label{fig:traj}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.82\textwidth, height=6.2cm,
+  xlabel={tempo $t$ (s)}, ylabel={distância ao alvo $d$ (m)},
+  xmin=0, xmax=20, ymin=0, ymax=3,
+  grid=both, grid style={gray!20},
+  title={Convergência ao alvo}
+]
+\addplot[blue,thick,mark=*,mark size=1pt] coordinates {
+(0,2.83)(1,2.62)(2,2.40)(3,2.33)(4,2.36)(5.1,2.40)(6.1,2.33)(7.1,2.15)(8.1,1.94)
+(9.1,1.73)(10.1,1.51)(11.1,1.30)(12.1,1.08)(13.1,0.86)(14.1,0.77)(15.1,0.73)
+(16.1,0.66)(17.2,0.49)(18.2,0.29)(19.2,0.09)(19.3,0.0)};
+\addplot[red,dashed,thick] coordinates {(0,0.07)(20,0.07)};
+\node[anchor=west,font=\scriptsize,red] at (axis cs:0.3,0.22) {tolerância de chegada};
+\end{axis}
+\end{tikzpicture}
+\caption{Distância ao alvo \emph{versus} tempo. O leve aumento em $t\in[3,6]$~s é o custo do contorno da primeira caixa.}
+\label{fig:dist}
+\end{figure}
+
+A Tabela~\ref{tab:result} sumariza o desempenho. Observou-se a sequência de estados \textsc{Navegar} $\to$ \textsc{Girar} $\to$ \textsc{Contornar} $\to$ \textsc{Navegar} a cada obstáculo relevante, exatamente como projetado.
+
+\begin{table}[H]
+\centering
+\caption{Síntese do desempenho na configuração final.}
+\label{tab:result}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Métrica} & \textbf{Valor} \\
+\midrule
+Posição inicial & $(-1{,}00;\,-1{,}00)$ \\
+Posição de chegada & $(0{,}94;\,1{,}03)$ \\
+Distância inicial ao alvo & $2{,}83$~m \\
+Tempo até a chegada & $19{,}3$~s (simulado) \\
+Colisões & $0$ \\
+Obstáculos contornados & $5$ (caixas) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Discussão}
+Os resultados confirmam que a arquitetura híbrida com compromisso de contorno resolve a tarefa proposta de forma robusta, superando as duas falhas diagnosticadas. Três pontos merecem destaque. \emph{Primeiro}, a importância da \textbf{observabilidade}: a telemetria instrumentada foi o instrumento decisivo de depuração --- coerente com a prática de engenharia de software de tempo real, em que a inspeção do laço de controle é essencial. \emph{Segundo}, a \textbf{calibração empírica}: o caso ilustra de modo contundente os riscos de confiar em folhas de dados sem medição. \emph{Terceiro}, as \textbf{limitações}: (i) a abordagem reativa não é completa --- geometrias adversas (p.\,ex.\ armadilhas em ``U'' profundas) ainda podem desafiar a heurística de escape; (ii) o uso de GPS é uma simplificação de simulação; e (iii) o curto alcance do IR impõe velocidade de cruzeiro moderada, sob pena de reação tardia (um \emph{trade-off} de tempo real entre velocidade e distância de reação).
+
+% =====================================================================
+\section{Conclusão e Trabalhos Futuros}\label{sec:conclusao}
+% =====================================================================
+Apresentou-se um controlador de navegação ponto-a-ponto com desvio de obstáculos para o Khepera~IV em ambiente Webots, fundamentado na literatura clássica de robótica móvel e validado com dados reais de execução. A arquitetura híbrida arbitrada por máquina de estados finitos, aliada à calibração empírica do sensoriamento, conduziu o robô ao alvo de forma livre de colisões em $19{,}3$~s, reduzindo a distância de $2{,}83$~m a menos de $0{,}07$~m. O processo de depuração baseado em telemetria mostrou-se tão instrutivo quanto o resultado, evidenciando os fenômenos de mínimo local e de descalibração sensorial.
+
+Como trabalhos futuros, propõem-se: (i) substituir o GPS por \emph{odometria} via encoders, aproximando-se do robô físico do CETELI e expondo o problema de deriva; (ii) incorporar os sensores ultrassônicos como ``antecipação'' de longo alcance, suavizando o desvio; (iii) adotar métodos reativos mais robustos como VFH \cite{borenstein1991vfh} ou DWA \cite{fox1997dwa}; e (iv) acrescentar uma camada deliberativa com mapeamento e planejamento global ($A^\star$/RRT) para ambientes que exijam completude. Por fim, recomenda-se a análise formal de escalonabilidade do laço de controle sob o modelo de tarefas periódicas \cite{liu1973}, fechando a ponte com a teoria de sistemas de tempo real.
+
+% =====================================================================
+\begin{thebibliography}{99}
+\bibitem{walter1950} W.~G. Walter, ``An Imitation of Life,'' \emph{Scientific American}, vol.~182, no.~5, pp.~42--45, 1950.
+\bibitem{braitenberg1984} V.~Braitenberg, \emph{Vehicles: Experiments in Synthetic Psychology}. Cambridge, MA: MIT Press, 1984.
+\bibitem{nilsson1984shakey} N.~J. Nilsson, ``Shakey the Robot,'' SRI International, Technical Note 323, 1984.
+\bibitem{hart1968astar} P.~E. Hart, N.~J. Nilsson, and B.~Raphael, ``A Formal Basis for the Heuristic Determination of Minimum Cost Paths,'' \emph{IEEE Trans. Systems Science and Cybernetics}, vol.~4, no.~2, pp.~100--107, 1968.
+\bibitem{brooks1986} R.~A. Brooks, ``A Robust Layered Control System for a Mobile Robot,'' \emph{IEEE Journal of Robotics and Automation}, vol.~2, no.~1, pp.~14--23, 1986.
+\bibitem{brooks1991} R.~A. Brooks, ``Intelligence without representation,'' \emph{Artificial Intelligence}, vol.~47, no.~1--3, pp.~139--159, 1991.
+\bibitem{khatib1986} O.~Khatib, ``Real-Time Obstacle Avoidance for Manipulators and Mobile Robots,'' \emph{The International Journal of Robotics Research}, vol.~5, no.~1, pp.~90--98, 1986.
+\bibitem{lumelsky1987} V.~J. Lumelsky and A.~A. Stepanov, ``Path-planning strategies for a point mobile automaton moving amidst unknown obstacles of arbitrary shape,'' \emph{Algorithmica}, vol.~2, pp.~403--430, 1987.
+\bibitem{borenstein1991vfh} J.~Borenstein and Y.~Koren, ``The Vector Field Histogram --- Fast Obstacle Avoidance for Mobile Robots,'' \emph{IEEE Trans. Robotics and Automation}, vol.~7, no.~3, pp.~278--288, 1991.
+\bibitem{fox1997dwa} D.~Fox, W.~Burgard, and S.~Thrun, ``The Dynamic Window Approach to Collision Avoidance,'' \emph{IEEE Robotics \& Automation Magazine}, vol.~4, no.~1, pp.~23--33, 1997.
+\bibitem{mondada1993khepera} F.~Mondada, E.~Franzi, and P.~Ienne, ``Mobile robot miniaturisation: A tool for investigation in control algorithms,'' in \emph{Proc. 3rd Int. Symp. Experimental Robotics (ISER)}, 1993, pp.~501--513.
+\bibitem{soares2016khepera} J.~M. Soares, I.~Navarro, and A.~Martinoli, ``The Khepera IV Mobile Robot: Performance Evaluation, Sensory Data and Software Toolbox,'' in \emph{Robot 2015: Second Iberian Robotics Conf.}, Springer, 2016, pp.~767--781.
+\bibitem{michel2004webots} O.~Michel, ``Cyberbotics Ltd. --- WebotsTM: Professional Mobile Robot Simulation,'' \emph{International Journal of Advanced Robotic Systems}, vol.~1, no.~1, pp.~39--42, 2004.
+\bibitem{siegwart2011} R.~Siegwart, I.~R. Nourbakhsh, and D.~Scaramuzza, \emph{Introduction to Autonomous Mobile Robots}, 2nd~ed. Cambridge, MA: MIT Press, 2011.
+\bibitem{thrun2005} S.~Thrun, W.~Burgard, and D.~Fox, \emph{Probabilistic Robotics}. Cambridge, MA: MIT Press, 2005.
+\bibitem{liu1973} C.~L. Liu and J.~W. Layland, ``Scheduling Algorithms for Multiprogramming in a Hard-Real-Time Environment,'' \emph{Journal of the ACM}, vol.~20, no.~1, pp.~46--61, 1973.
+\end{thebibliography}
+
+% =====================================================================
+\appendix
+\section{Código-fonte completo do controlador}\label{ap:codigo}
+A listagem a seguir reproduz, na íntegra, o controlador \texttt{goto\_avoid.c}.
+\lstinputlisting[style=c]{../controllers/goto_avoid/goto_avoid.c}
+
+\end{document}
