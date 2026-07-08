@@ -25,6 +25,7 @@ Na simulação a pose vem de **GPS + IMU**; no robô real, de **odometria** pelo
 | `worlds/` | Mundo Webots (`first.wbt`) — arena 3×3 com slalom de obstáculos |
 | `controllers/goto_avoid/` | Controlador da simulação (C) |
 | `khepera_real/` | Versão para o robô físico (`patrulha/main.c`) + guia [`how_to_run.md`](khepera_real/how_to_run.md) |
+| `interface/` | Interface web local para controle USB/Wi-Fi, deploy, compilação, parâmetros, telemetria e mapas do robô real |
 | `entregaveis/` | Entregáveis FTL094 (LaTeX + PDF): plano de projeto, requisitos, arquitetura, plano/protocolo de testes, código-fonte, apresentação |
 | `relatorio/` | Relatório técnico completo (LaTeX + PDF) |
 
@@ -36,6 +37,12 @@ está associado ao Khepera4. Compilação via toolchain do próprio Webots (`mak
 **Robô real (Khepera IV):** veja [`khepera_real/how_to_run.md`](khepera_real/how_to_run.md)
 — transferência do código por console serial, build no robô (gcc + khepera4toolbox) e
 execução na bateria (sem cabo).
+
+**Interface web local (USB/serial ou Wi-Fi/SSH):** veja [`interface/README.md`](interface/README.md).
+Ela sobe um servidor Flask em `http://localhost:8340` para conectar ao robô,
+executar missões, usar controle manual tipo carrinho remoto, acompanhar
+telemetria, criar mapas em grade/grafo, enviar `main.c`, recompilar e ajustar
+parâmetros `#define` permitidos.
 
 ## Equipe
 

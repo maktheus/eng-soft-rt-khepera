@@ -4,6 +4,15 @@ tools/
 # Webots: artefatos de build
 controllers/**/build/
 
+# Python: cache da interface Flask
+__pycache__/
+*.pyc
+*.pyo
+
+# Interface: mapas gerados em execucao
+interface/maps/*
+!interface/maps/.gitkeep
+
 # Binarios compilados (controller Webots + robo)
 *.exe
 *.o

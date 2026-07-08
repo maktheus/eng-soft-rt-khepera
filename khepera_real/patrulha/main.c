@@ -27,16 +27,19 @@
  *   ./patrulha --gx 1000 --gy 300   alvo B em (1000,300) mm
  *   ./patrulha --loop          vai-e-volta A<->B pra sempre (bom pra demo)
  *   ./patrulha --diag          so le sensores/encoders, nao move
+ *   ./patrulha --teleop        controle manual pela serial (comandos v/s/q)
  *   ./patrulha -t 0.03         trim se o robo puxa pra um lado
  */
 #include "khepera4.h"
 #include "commandline.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <signal.h>
 #include <math.h>
 #include <sys/time.h>
+#include <sys/select.h>
 
 /* ---------- odometria ---------- */
 #define PULSES_PER_MM 147.4
@@ -102,12 +105,118 @@ static void diag(void){
     }
 }
 
+static int teleop_read_command(double *fwd, double *diff, int *quit){
+    fd_set rfds;
+    struct timeval tv;
+    char line[96], op[16];
+    double a=0, b=0;
+
+    FD_ZERO(&rfds);
+    FD_SET(STDIN_FILENO, &rfds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    if(select(STDIN_FILENO + 1, &rfds, NULL, NULL, &tv) <= 0) return 0;
+    if(!fgets(line, sizeof(line), stdin)) return 0;
+    if(sscanf(line, " %15s %lf %lf", op, &a, &b) < 1) return 0;
+
+    if(strcmp(op, "v") == 0 && sscanf(line, " %*s %lf %lf", &a, &b) == 2){
+        *fwd = clampd(a, -1.0, 1.0);
+        *diff = clampd(b, -DIFF_MAX, DIFF_MAX);
+        return 1;
+    }
+    if(strcmp(op, "s") == 0 || strcmp(op, "stop") == 0){
+        *fwd = 0.0;
+        *diff = 0.0;
+        return 1;
+    }
+    if(strcmp(op, "q") == 0 || strcmp(op, "quit") == 0){
+        *fwd = 0.0;
+        *diff = 0.0;
+        *quit = 1;
+        return 1;
+    }
+    return 0;
+}
+
+static void teleop(void){
+    double target_fwd = 0.0, target_diff = 0.0;
+    double last_cmd = now_s();
+    long tick = 0;
+    int batt_tick = 0;
+
+    khepera4_drive_start();
+    khepera4_drive_reset_position(); usleep(120000);
+    khepera4_drive_get_current_position();
+    int enc_l0 = khepera4.motor_left.current_position;
+    int enc_r0 = khepera4.motor_right.current_position;
+    double x=0, y=0, th=0;
+    leds(35, 25, 0);
+    printf("TELEOP: comandos pela serial: v <fwd -1..1> <diff -0.9..0.9>, s=para, q=sair.\n");
+    printf("TELEOP: seguranca ativa: sem comando por 0.8s => motores parados.\n");
+    fflush(stdout);
+
+    while(running){
+        int quit = 0;
+        if(teleop_read_command(&target_fwd, &target_diff, &quit)){
+            last_cmd = now_s();
+            if(quit) break;
+        }
+
+        khepera4_infrared_proximity();
+        khepera4_drive_get_current_position();
+        if((batt_tick++ % 25)==0) khepera4_battery();
+
+        int el = khepera4.motor_left.current_position;
+        int er = khepera4.motor_right.current_position;
+        double dl = (double)(el-enc_l0)/PULSES_PER_MM;
+        double dr = (double)(er-enc_r0)/PULSES_PER_MM;
+        enc_l0=el; enc_r0=er;
+        double dc  = 0.5*(dl+dr);
+        double dth = (dr-dl)/WHEELBASE_MM;
+        x  += dc*cos(th+0.5*dth);
+        y  += dc*sin(th+0.5*dth);
+        th  = wrap(th+dth);
+
+        int F=excess(IRP(3)), FL=excess(IRP(2)), FR=excess(IRP(4));
+        int gmin=IRP(8); if(IRP(9)<gmin)gmin=IRP(9); if(IRP(10)<gmin)gmin=IRP(10); if(IRP(11)<gmin)gmin=IRP(11);
+        double fwd = target_fwd, diff = target_diff;
+        const char *guard = "OK";
+
+        if(now_s() - last_cmd > 0.8){
+            fwd = 0.0;
+            diff = 0.0;
+            guard = "STALE";
+        }
+        if(gmin < CLIFF_THR && fwd > 0.0){
+            fwd = 0.0;
+            guard = "BEIRADA";
+        }
+
+        khepera4_drive_set_speed_differential(SPEED, fwd, diff);
+
+        if(++tick % 8 == 0){
+            printf("[MANUAL] pose=(%.0f,%.0f,%.0fd) fwd=%+.2f diff=%+.2f guard=%s | F/FL/FR=%d/%d/%d | chao=%d bat=%umV\n",
+                   x, y, th*180/M_PI, fwd, diff, guard, F+IR_BASE, FL+IR_BASE, FR+IR_BASE, gmin, khepera4.battery.voltage);
+            fflush(stdout);
+        }
+        usleep(WAIT_US);
+    }
+
+    khepera4_drive_set_speed_differential(SPEED, 0.0, 0.0);
+    khepera4_drive_stop();
+    khepera4_drive_idle();
+    leds(0,0,0);
+    printf("\nTELEOP encerrado. Motores parados.\n");
+    fflush(stdout);
+}
+
 int main(int argc, char *argv[]){
     commandline_init(); commandline_parse(argc, argv);
     signal(SIGINT,on_sigint); signal(SIGTERM,on_sigint); signal(SIGHUP,on_sigint);
 
     khepera4_init();
     if (commandline_option_provided("-d","--diag")){ diag(); return 0; }
+    if (commandline_option_provided("-m","--teleop")){ teleop(); return 0; }
 
     double trim = commandline_option_value_float("-t","--trim",0.0);
     double gx   = commandline_option_value_float("-x","--gx",GOAL_X_DEF);
