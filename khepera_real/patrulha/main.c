@@ -28,6 +28,9 @@
  *   ./patrulha --loop          vai-e-volta A<->B pra sempre (bom pra demo)
  *   ./patrulha --diag          so le sensores/encoders, nao move
  *   ./patrulha --teleop        controle manual pela serial (comandos v/s/q)
+ *   ./patrulha --mission       recebe waypoints "goto X Y" pela serial, com a
+ *                              odometria continua (usado pelo planejador A* da
+ *                              interface sobre o mapa gerado)
  *   ./patrulha -t 0.03         trim se o robo puxa pra um lado
  */
 #include "khepera4.h"
@@ -53,6 +56,17 @@
 /* ---------- rumo (go-to-goal) ---------- */
 #define KP_HEAD       1.2      /* ganho de rumo (erro rad -> diff)           */
 #define HEAD_SLOW     1.2      /* rad de erro p/ (quase) girar parado        */
+
+/* ---------- rastreamento da linha: ponto de controle virtual P ----------
+ * Em vez de so MIRAR em B (proporcional de rumo), o robo SEGUE a linha A->B
+ * usando o erro lateral d_line. Depois de contornar um obstaculo ele VOLTA
+ * pro eixo em vez de cortar diagonal ate B. E a malha externa (cinematica)
+ * do controle em cascata, adaptada ao driver diferencial normalizado.       */
+#define USE_POINT_P   1        /* 1 = ponto-P (segue a linha); 0 = so mira em B */
+#define LOOKAHEAD_MM  120.0    /* "d": distancia do ponto P; suaviza a correcao */
+#define K_CT          1.0      /* ganho proporcional do erro lateral (d_line)   */
+#define KI_CT         0.0015   /* ganho integral do erro lateral (mata vies)    */
+#define CT_INT_MAX    250.0    /* limite anti-windup do integrador (governador) */
 
 /* ---------- IR (em "excesso" = leitura - IR_BASE) ---------- */
 #define IR_BASE       120
@@ -135,6 +149,24 @@ static int teleop_read_command(double *fwd, double *diff, int *quit){
         *quit = 1;
         return 1;
     }
+    return 0;
+}
+
+/* Modo missao: le do stdin (nao bloqueia) uma das linhas:
+ *   goto X Y   -> novo alvo em (X,Y) mm            (retorna 1, preenche *gx,*gy)
+ *   stop       -> para e aguarda proximo goto      (retorna 2)
+ *   quit | q   -> encerra a missao                 (retorna 3)
+ * Retorna 0 quando nao ha comando. Usado pela interface p/ enviar os
+ * waypoints do planejador A* sobre o mapa, com a odometria continua. */
+static int mission_read(double *gx, double *gy){
+    fd_set rfds; struct timeval tv; char line[96], op[16]; double a=0,b=0;
+    FD_ZERO(&rfds); FD_SET(STDIN_FILENO,&rfds); tv.tv_sec=0; tv.tv_usec=0;
+    if(select(STDIN_FILENO+1,&rfds,NULL,NULL,&tv)<=0) return 0;
+    if(!fgets(line,sizeof(line),stdin)) return 0;
+    if(sscanf(line," %15s",op)<1) return 0;
+    if(strcmp(op,"goto")==0 && sscanf(line," %*s %lf %lf",&a,&b)==2){ *gx=a; *gy=b; return 1; }
+    if(strcmp(op,"stop")==0) return 2;
+    if(strcmp(op,"quit")==0 || strcmp(op,"q")==0) return 3;
     return 0;
 }
 
@@ -222,6 +254,7 @@ int main(int argc, char *argv[]){
     double gx   = commandline_option_value_float("-x","--gx",GOAL_X_DEF);
     double gy   = commandline_option_value_float("-y","--gy",GOAL_Y_DEF);
     int    loop = commandline_option_provided("-l","--loop");
+    int    mission = commandline_option_provided("-M","--mission");  /* waypoints via stdin */
 
     khepera4_drive_start();
     khepera4_drive_reset_position(); usleep(120000);
@@ -237,11 +270,16 @@ int main(int argc, char *argv[]){
     double fwd_s=0, diff_s=0, cliff_start=0;
     int wall_left=0;                     /* 1 = obstaculo mantido a ESQUERDA */
     double hit_dgoal=0; int left_line=0; /* estado do Bug2 durante WALLF     */
+    double ct_int=0;                     /* integrador do erro lateral (ponto-P) */
+    int    have_goal = !mission;          /* modo missao comeca sem alvo (aguarda goto) */
     long tick=0; int batt_tick=0;
     double t_prev = now_s();
 
     leds(0,0,30);
-    printf("A->B (Bug2, odometria). B=(%.0f,%.0f)mm loop=%d trim=%.3f. Ctrl-C p/ parar.\n", bx,by,loop,trim);
+    if(mission)
+        printf("MISSAO: aguardando 'goto X Y' pela serial (stop/quit). Ctrl-C p/ parar.\n");
+    else
+        printf("A->B (Bug2, odometria). B=(%.0f,%.0f)mm loop=%d trim=%.3f. Ctrl-C p/ parar.\n", bx,by,loop,trim);
 
     while(running){
         double t_now=now_s(); double dt=t_now-t_prev; t_prev=t_now;
@@ -263,6 +301,24 @@ int main(int argc, char *argv[]){
         y  += dc*sin(th+0.5*dth);
         th  = wrap(th+dth);
 
+        /* ---------- modo missao: recebe waypoints do planejador (A* no mapa) ---------- */
+        if(mission){
+            double ngx,ngy; int mc=mission_read(&ngx,&ngy);
+            if(mc==1){                                   /* goto X Y: novo leg A(atual)->B */
+                ax=x; ay=y; bx=ngx; by=ngy;
+                estado=GOAL; fwd_s=0; diff_s=0; ct_int=0; have_goal=1;
+                printf(">> GOTO (%.0f,%.0f)\n", bx,by); fflush(stdout);
+            } else if(mc==2){                            /* stop: aguarda proximo goto */
+                have_goal=0; printf(">> STOP\n"); fflush(stdout);
+            } else if(mc==3){                            /* quit: encerra a missao */
+                break;
+            }
+            if(!have_goal){
+                khepera4_drive_set_speed_differential(SPEED,0,0);
+                usleep(WAIT_US); continue;
+            }
+        }
+
         int F=excess(IRP(3)),FL=excess(IRP(2)),FR=excess(IRP(4)),L=excess(IRP(1)),R=excess(IRP(5));
         int Lc = FL>L?FL:L, Rc = FR>R?FR:R;              /* clusters lateral-frontais */
         int fb = F; if(FL>fb)fb=FL; if(FR>fb)fb=FR;      /* pior sensor frontal */
@@ -281,9 +337,13 @@ int main(int argc, char *argv[]){
         if(d_goal < ARRIVE_MM){
             khepera4_drive_set_speed_differential(SPEED,0,0);
             printf("== CHEGOU em (%.0f,%.0f)  pose=(%.0f,%.0f,%.0fdeg) ==\n", bx,by,x,y,th*180/M_PI); fflush(stdout);
+            if(mission){        /* chegou no waypoint: aguarda o proximo goto */
+                have_goal=0; estado=GOAL; fwd_s=0; diff_s=0; ct_int=0;
+                leds(0,40,0); usleep(200000); continue;
+            }
             if(!loop) break;
             double nax=bx,nay=by; bx=ax; by=ay; ax=nax; ay=nay;   /* inverte o segmento */
-            estado=GOAL; fwd_s=0; diff_s=0; leds(0,40,0); usleep(600000); continue;
+            estado=GOAL; fwd_s=0; diff_s=0; ct_int=0; leds(0,40,0); usleep(600000); continue;
         }
 
         /* ---------- ANTI-QUEDA (prioridade maxima) ---------- */
@@ -293,7 +353,7 @@ int main(int argc, char *argv[]){
             double e=t_now-cliff_start;
             if(e<0.5)      khepera4_drive_set_speed_differential(SPEED,-0.6,0.0);
             else if(e<1.3) khepera4_drive_set_speed_differential(SPEED, 0.0,TURN_SPEED);
-            else { estado=GOAL; fwd_s=0; diff_s=0; }
+            else { estado=GOAL; fwd_s=0; diff_s=0; ct_int=0; }
             if(++tick%8==0){ printf("[BEIRADA] chao=%d\n",gmin); fflush(stdout); }
             usleep(WAIT_US); continue;
         }
@@ -301,16 +361,38 @@ int main(int argc, char *argv[]){
         double forward, diff;
 
         if(estado==GOAL){
-            /* ---- MIRA E ANDA NA LINHA A->B ---- */
+            /* ---- SEGUE A LINHA A->B ---- */
             if(led_state!=0){ leds(0,30,0); led_state=0; }              /* verde: rumo a B */
-            diff = clampd(-KP_HEAD*herr, -DIFF_MAX, DIFF_MAX);          /* herr>0 (B a esq) -> diff<0 (esq) */
-            forward = clampd(1.0 - fabs(herr)/HEAD_SLOW, 0.12, 1.0);    /* erro grande -> quase gira parado */
+            double herr_ctrl;
+#if USE_POINT_P
+            /* Ponto de controle virtual P: o rumo desejado une o AVANCO na
+             * direcao da linha com uma CORRECAO proporcional (e integral) ao
+             * erro lateral d_line. d_line>0 => robo a ESQUERDA da linha =>
+             * corrige virando pro lado da linha. Longe da linha, o rumo tende
+             * a perpendicular; sobre ela, tende a paralelo (avanca reto).     */
+            double theta_line = atan2(uy, ux);
+            double ct_cmd     = K_CT*d_line + KI_CT*ct_int;
+            double cross_corr = atan2(ct_cmd, LOOKAHEAD_MM);
+            double head_ref   = wrap(theta_line - cross_corr);
+            herr_ctrl = wrap(head_ref - th);
+#else
+            herr_ctrl = herr;                                          /* proporcional: mira em B */
+#endif
+            diff = clampd(-KP_HEAD*herr_ctrl, -DIFF_MAX, DIFF_MAX);    /* herr>0 (alvo a esq) -> diff<0 (esq) */
+            forward = clampd(1.0 - fabs(herr_ctrl)/HEAD_SLOW, 0.12, 1.0); /* erro grande -> quase gira parado */
             double fr = clampd(1.0 - fb/FRONT_SPAN, 0.25, 1.0);
             if(fr<forward) forward=fr;
 
+#if USE_POINT_P
+            /* integra d_line so quando a direcao NAO saturou (governador
+             * anti-windup -- congela o integrador na saturacao). */
+            if(fabs(diff) < DIFF_MAX)
+                ct_int = clampd(ct_int + d_line*dt, -CT_INT_MAX, CT_INT_MAX);
+#endif
+
             /* obstaculo na frente -> entra em SEGUE-PAREDE (Bug2) */
             if(fb>FRONT_BLOCK){
-                estado=WALLF; hit_dgoal=d_goal; left_line=0;
+                estado=WALLF; hit_dgoal=d_goal; left_line=0; ct_int=0;
                 /* contorna pelo lado que aponta pra B: B a esquerda -> passa pela
                    esquerda -> mantem o obstaculo a DIREITA (wall_left=0). */
                 wall_left = (herr < 0.0);
