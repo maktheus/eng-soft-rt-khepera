@@ -15,6 +15,7 @@ Uso:  python app.py   ->   http://localhost:8340
 """
 import base64
 import concurrent.futures
+import glob
 import hashlib
 import ipaddress
 import json
@@ -38,6 +39,8 @@ try:
     import paramiko
 except ImportError:  # dependencia opcional para manter USB funcionando
     paramiko = None
+
+import planner  # A* sobre o mapa de ocupacao gerado
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 LOCAL_MAIN = os.path.normpath(os.path.join(BASE, "..", "khepera_real", "patrulha", "main.c"))
@@ -1014,6 +1017,33 @@ class RobotLink:
         else:
             self.job.update(status="ok", detail="enviado")
 
+    def job_navigate(self, gx, gy, waypoints):
+        """Executa a missao: sobe o patrulha em modo --mission e envia os
+        waypoints do planejador A* (mapa) um a um, com odometria continua."""
+        self.running = True
+        self.manual = False
+        self.scan_reset()
+        self.cmd(f"cd {REMOTE_DIR} && ./patrulha --mission")
+        if not self.wait_for(r"aguardando 'goto", 10):
+            self.job.update(status="error", detail="modo missao nao iniciou")
+            self.running = False
+            return
+        n = len(waypoints)
+        for k, (wx, wy) in enumerate(waypoints):
+            if not self.running:
+                break
+            self.job["detail"] = f"waypoint {k+1}/{n} -> ({wx:.0f},{wy:.0f})"
+            self.scan_reset()
+            self.cmd(f"goto {wx:.0f} {wy:.0f}", echo=False)
+            if not self.wait_for(r"CHEGOU", 180):
+                self.cmd("quit", echo=False)
+                self.job.update(status="error", detail=f"timeout no waypoint {k+1}/{n}")
+                self.running = False
+                return
+        self.cmd("quit", echo=False)
+        self.running = False
+        self.job.update(status="ok", detail=f"missao concluida ({n} waypoints)")
+
     def job_compile(self):
         self._compile()
 
@@ -1199,6 +1229,45 @@ def map_state():
 @app.get("/api/map/sessions")
 def map_sessions():
     return jsonify({"sessions": mapper.sessions()})
+
+
+def _latest_grid():
+    """Grid.json mais recente (com celulas) salvo em maps/, ou None."""
+    files = sorted(glob.glob(os.path.join(MAPS_DIR, "*", "grid.json")))
+    for f in reversed(files):
+        try:
+            g = json.load(open(f, encoding="utf-8"))
+            if g.get("cells"):
+                return g, os.path.basename(os.path.dirname(f))
+        except Exception:
+            continue
+    return None, None
+
+
+@app.post("/api/map/navigate")
+def map_navigate():
+    """Planeja A* sobre o mapa gerado (frame de odometria = start em 0,0) e
+    dirige o robo pelos waypoints via modo --mission.
+    NOTA: como a odometria zera a cada missao, o mapa e o alvo sao
+    interpretados no MESMO referencial (robo comeca na origem do mapa)."""
+    err = _need_free_for_job()
+    if err:
+        return err
+    j = request.json or {}
+    try:
+        gx = float(j.get("gx")); gy = float(j.get("gy"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "alvo (gx,gy) invalido"}), 400
+    grid, sess = _latest_grid()
+    if grid is None:
+        return jsonify({"ok": False, "error": "nenhum mapa salvo em maps/ (rode e salve um mapa antes)"}), 400
+    wps = planner.plan_waypoints(grid, (0.0, 0.0), (gx, gy))
+    if not wps:
+        return jsonify({"ok": False, "error": "sem caminho ate o alvo no mapa (alvo dentro de obstaculo?)"}), 409
+    ok = link.start_job("navigate", link.job_navigate, gx, gy, wps)
+    if not ok:
+        return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
+    return jsonify({"ok": True, "map": sess, "waypoints": wps})
 
 
 @app.post("/api/map/start")
