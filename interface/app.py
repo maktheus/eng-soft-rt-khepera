@@ -8,6 +8,8 @@ Servidor local que faz a ponte entre o navegador e o robo:
   - mapeamento passivo em grade + grafo com persistencia em JSON/NDJSON
   - deploy do main.c local + recompilacao no robo
   - edicao de parametros de compilacao (#define) via sed + rebuild
+  - configuracao do Wi-Fi do robo (wpa_supplicant + udhcpc) usando a rede
+    atual da maquina que roda esta interface
 
 Uso:  python app.py   ->   http://localhost:8340
 """
@@ -18,7 +20,9 @@ import ipaddress
 import json
 import math
 import os
+import platform
 import re
+import shlex
 import socket
 import subprocess
 import threading
@@ -400,6 +404,48 @@ def _arp_ipv4s():
     return sorted(ips)
 
 
+IFACE_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def _detect_local_wifi():
+    """Melhor esforco para achar o SSID da rede Wi-Fi da maquina que roda a interface."""
+    system = platform.system()
+    try:
+        if system == "Windows":
+            out = _run_text(["netsh", "wlan", "show", "interfaces"], timeout=3.0)
+            for line in out.splitlines():
+                line = line.strip()
+                if line.lower().startswith("ssid") and "bssid" not in line.lower():
+                    _, _, value = line.partition(":")
+                    value = value.strip()
+                    if value:
+                        return value
+            return None
+        if system == "Darwin":
+            airport = (
+                "/System/Library/PrivateFrameworks/Apple80211.framework"
+                "/Versions/Current/Resources/airport"
+            )
+            out = _run_text([airport, "-I"], timeout=3.0)
+            for line in out.splitlines():
+                line = line.strip()
+                if line.startswith("SSID:"):
+                    value = line.split(":", 1)[1].strip()
+                    if value:
+                        return value
+            return None
+        out = _run_text(["nmcli", "-t", "-f", "active,ssid", "dev", "wifi"], timeout=3.0)
+        for line in out.splitlines():
+            if line.startswith("yes:"):
+                value = line.split(":", 1)[1].strip()
+                if value:
+                    return value
+        out = _run_text(["iwgetid", "-r"], timeout=2.0).strip()
+        return out or None
+    except Exception:
+        return None
+
+
 def _resolve_common_hosts(timeout=1.6):
     found = {}
 
@@ -633,6 +679,7 @@ class RobotLink:
         self.overrides = {}             # #define aplicados nesta sessao
         self.echo_off = False
         self._alive = False
+        self.wifi_ip = None             # IP obtido pelo ultimo job_wifi_setup
 
     # ---------------- conexao ----------------
     def _connect_transport(self, transport):
@@ -966,6 +1013,42 @@ class RobotLink:
         time.sleep(0.8)
         self._compile()
 
+    def job_wifi_setup(self, ssid, password, iface):
+        q_ssid = shlex.quote(ssid)
+        self.job["detail"] = "gravando wpa_supplicant.conf..."
+        if password:
+            self.cmd(f"wpa_passphrase {q_ssid} {shlex.quote(password)} > /tmp/wpa.conf", echo=False)
+        else:
+            self.cmd(
+                "printf 'network={\\n  ssid=\"%s\"\\n  key_mgmt=NONE\\n}\\n' "
+                f"{q_ssid} > /tmp/wpa.conf",
+                echo=False,
+            )
+        time.sleep(0.4)
+
+        self.job["detail"] = "reiniciando wpa_supplicant..."
+        self.cmd("killall wpa_supplicant 2>/dev/null; sleep 1", echo=False)
+        time.sleep(1.2)
+        self.scan_reset()
+        self.cmd(f"wpa_supplicant -B -i {iface} -c /tmp/wpa.conf -D nl80211,wext", echo=False)
+        time.sleep(2.0)
+
+        self.job["detail"] = "obtendo IP (udhcpc)..."
+        self.scan_reset()
+        self.cmd(f"udhcpc -i {iface}", echo=False)
+        m = self.wait_for(r"\binet\b[^\d]*(\d{1,3}(?:\.\d{1,3}){3})", 20)
+        if not m:
+            self.scan_reset()
+            self.cmd(f"ip addr show {iface} | grep inet", echo=False)
+            m = self.wait_for(r"inet\s+(\d{1,3}(?:\.\d{1,3}){3})", 8)
+
+        if m:
+            self.wifi_ip = m.group(1)
+            self.job.update(status="ok", detail=f"conectado, IP {self.wifi_ip}")
+        else:
+            self.wifi_ip = None
+            self.job.update(status="error", detail="sem IP -- confira SSID/senha e tente de novo")
+
 
 link = RobotLink()
 app = Flask(__name__, static_folder="static")
@@ -994,6 +1077,34 @@ def wifi_discover():
     include_subnet = request.args.get("scan", "1") != "0"
     result = discover_wifi_devices(timeout=timeout, include_subnet=include_subnet)
     return jsonify({"ok": True, **result})
+
+
+@app.get("/api/wifi/current")
+def wifi_current():
+    """SSID da rede Wi-Fi da maquina que roda esta interface (para preencher o formulario)."""
+    ssid = _detect_local_wifi()
+    return jsonify({"ok": True, "ssid": ssid})
+
+
+@app.post("/api/wifi/setup")
+def wifi_setup():
+    err = _need_free_for_job()
+    if err:
+        return err
+    j = request.json or {}
+    ssid = (j.get("ssid") or "").strip()
+    password = j.get("password") or ""
+    iface = (j.get("iface") or "wlan0").strip() or "wlan0"
+    if not ssid:
+        return jsonify({"ok": False, "error": "SSID nao informado"}), 400
+    if password and len(password) < 8:
+        return jsonify({"ok": False, "error": "senha WPA/WPA2 deve ter ao menos 8 caracteres"}), 400
+    if not IFACE_RE.match(iface):
+        return jsonify({"ok": False, "error": f"interface invalida: {iface}"}), 400
+    ok = link.start_job("wifi", link.job_wifi_setup, ssid, password, iface)
+    if not ok:
+        return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
+    return jsonify({"ok": True})
 
 
 @app.post("/api/connect")
@@ -1039,6 +1150,7 @@ def state():
         "telem": telem, "trail": trail, "goal": link.goal,
         "map": mapper.snapshot(),
         "console": lines, "console_next": nxt,
+        "wifi_ip": link.wifi_ip,
     })
 
 
@@ -1236,5 +1348,9 @@ def raw_cmd():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8340"))
+    host = os.environ.get("HOST", "0.0.0.0")
     print(f"Interface Khepera IV -> http://localhost:{port}   (main.c local: {LOCAL_MAIN})")
-    app.run(host="127.0.0.1", port=port, threaded=True)
+    if host not in ("127.0.0.1", "localhost"):
+        for ip in _local_ipv4s():
+            print(f"  tambem acessivel na mesma rede em: http://{ip}:{port}")
+    app.run(host=host, port=port, threaded=True)

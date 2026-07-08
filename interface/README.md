@@ -56,7 +56,18 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
-Abra `http://localhost:8340`.
+Abra `http://localhost:8340` na maquina que rodou o `app.py`.
+
+Por padrao o servidor escuta em `0.0.0.0`, ou seja, tambem fica acessivel de
+**outros dispositivos na mesma rede** (PC, celular, tablet) em
+`http://<IP-da-maquina-que-rodou-o-app.py>:8340` — o IP correto e impresso no
+terminal ao iniciar. Isso permite, por exemplo, rodar o `app.py` no celular
+conectado ao robo por USB e controlar tudo pelo navegador do PC na mesma
+rede Wi-Fi (ou vice-versa).
+
+> Sem autenticacao: qualquer um na mesma rede local pode abrir a pagina e
+> mandar o robo andar. Para restringir, defina `HOST=127.0.0.1` antes de
+> rodar (`HOST=127.0.0.1 python app.py`) e volte ao acesso so-local.
 
 ## Fluxo recomendado
 

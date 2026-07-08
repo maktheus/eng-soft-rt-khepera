@@ -743,6 +743,41 @@
 
         <section class="panel">
           <header>
+            <h2>Wi-Fi do robo</h2>
+            <span id="wifiSetupBadge" class="badge">nao configurado</span>
+          </header>
+          <div class="body">
+            <p class="hint">
+              Envia a sua rede atual para o robo (via console ja conectado, normalmente USB) e
+              roda <code>wpa_supplicant</code> + <code>udhcpc</code> nele. Depois use o IP obtido
+              para conectar por Wi-Fi sem cabo.
+            </p>
+            <div class="actions" style="margin-top:0">
+              <button id="detectWifiBtn" type="button">Usar minha rede atual</button>
+            </div>
+            <div class="subtle-block">
+              <div class="form-grid">
+                <label>SSID
+                  <input id="wifiSetupSsidInput" type="text" placeholder="nome da rede 2.4 GHz" autocomplete="off">
+                </label>
+                <label>Senha
+                  <input id="wifiSetupPasswordInput" type="password" placeholder="vazio = rede aberta" autocomplete="off">
+                </label>
+                <label>Interface no robo
+                  <input id="wifiSetupIfaceInput" type="text" value="wlan0" autocomplete="off">
+                </label>
+              </div>
+            </div>
+            <div class="actions">
+              <button id="wifiSetupBtn" class="primary" type="button">Configurar Wi-Fi no robo</button>
+            </div>
+            <p class="hint">O Khepera so tem radio 2.4 GHz — confirme que essa e a banda da sua rede.</p>
+            <div id="wifiSetupResult" class="banner"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Missao</h2>
             <span id="arrivedBadge" class="badge">em espera</span>
           </header>
@@ -974,6 +1009,7 @@
       wifiSearched: false,
       wifiCandidates: [],
       selectedWifiHost: localStorage.getItem("khepera.wifiHost") || "",
+      wifiSetupResultShown: false,
       portsLoaded: false,
       pollDelay: 650
     };
@@ -1308,6 +1344,84 @@
       const mapBadge = el("mapStatusBadge");
       cls(mapBadge, "badge", map.active ? "ok" : "");
       mapBadge.textContent = map.active ? `gravando ${map.session_id || ""}` : map.session_id ? `salvo ${map.session_id}` : "mapa off";
+
+      updateWifiSetupUI(data);
+    }
+
+    function updateWifiSetupUI(data) {
+      const badge = el("wifiSetupBadge");
+      const result = el("wifiSetupResult");
+      const job = data.job && data.job.name === "wifi" ? data.job : null;
+      if (job && job.status === "running") {
+        cls(badge, "badge", "warn");
+        badge.textContent = "configurando...";
+        result.className = "banner";
+        result.textContent = job.detail || "configurando Wi-Fi no robo...";
+        return;
+      }
+      if (job && job.status === "error") {
+        cls(badge, "badge", "danger");
+        badge.textContent = "falhou";
+        result.className = "banner error";
+        result.textContent = job.detail || "falha ao configurar Wi-Fi.";
+        return;
+      }
+      if (data.wifi_ip) {
+        cls(badge, "badge", "ok");
+        badge.textContent = `IP ${data.wifi_ip}`;
+        if (!state.wifiSetupResultShown) {
+          result.className = "banner ok";
+          result.innerHTML = `Robo conectado, IP <code>${data.wifi_ip}</code>. ` +
+            `<button id="useWifiIpBtn" type="button">Usar este IP no modo Wi-Fi</button>`;
+          const btn = document.getElementById("useWifiIpBtn");
+          if (btn) btn.addEventListener("click", () => useDetectedWifiIp(data.wifi_ip));
+          state.wifiSetupResultShown = true;
+        }
+        return;
+      }
+      cls(badge, "badge", "");
+      badge.textContent = "nao configurado";
+    }
+
+    function useDetectedWifiIp(ip) {
+      setConnectionMode("wifi");
+      el("wifiHostInput").value = ip;
+      state.selectedWifiHost = ip;
+      localStorage.setItem("khepera.wifiHost", ip);
+      setButtons(state.last || {});
+      showStatus(`IP ${ip} preenchido no modo Wi-Fi. Desconecte o USB e clique em Conectar.`, "ok");
+    }
+
+    async function detectWifiSetup() {
+      try {
+        showStatus("Detectando rede Wi-Fi atual...", "ok");
+        const data = await api("/api/wifi/current");
+        if (data.ssid) {
+          el("wifiSetupSsidInput").value = data.ssid;
+          showStatus(`Rede detectada: ${data.ssid}. Confirme a senha e clique em Configurar.`, "ok");
+        } else {
+          showStatus("Nao foi possivel detectar o SSID automaticamente. Preencha manualmente.", "error");
+        }
+      } catch (error) {
+        showStatus(error.message, "error");
+      }
+    }
+
+    async function submitWifiSetup() {
+      const ssid = el("wifiSetupSsidInput").value.trim();
+      const password = el("wifiSetupPasswordInput").value;
+      const iface = el("wifiSetupIfaceInput").value.trim() || "wlan0";
+      if (!ssid) {
+        showStatus("Informe o SSID da rede.", "error");
+        return;
+      }
+      state.wifiSetupResultShown = false;
+      try {
+        await api("/api/wifi/setup", {method: "POST", body: JSON.stringify({ssid, password, iface})});
+        showStatus("Configuracao de Wi-Fi enviada ao robo. Acompanhe o job acima.", "ok");
+      } catch (error) {
+        showStatus(error.message, "error");
+      }
     }
 
     function updateMapStats(map = {}) {
@@ -1370,6 +1484,7 @@
       el("deployBtn").disabled = !connected || busy || running;
       el("compileBtn").disabled = !connected || busy || running;
       el("applyDefinesBtn").disabled = !connected || busy || running;
+      el("wifiSetupBtn").disabled = !connected || busy || running;
       el("sendCmdBtn").disabled = !connected;
       el("startManualBtn").disabled = !connected || !teleopReady || busy || (running && !manual);
       el("manualZeroBtn").disabled = !connected || !manual;
@@ -1800,6 +1915,8 @@
       el("mapStopBtn").addEventListener("click", stopMap);
       el("mapSaveBtn").addEventListener("click", saveMap);
       el("mapClearBtn").addEventListener("click", clearMap);
+      el("detectWifiBtn").addEventListener("click", detectWifiSetup);
+      el("wifiSetupBtn").addEventListener("click", submitWifiSetup);
       el("manualZeroBtn").addEventListener("click", () => {
         endManualDrive(false);
         manualZero(true);
