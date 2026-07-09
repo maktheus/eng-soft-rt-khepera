@@ -1044,6 +1044,33 @@ class RobotLink:
         self.running = False
         self.job.update(status="ok", detail=f"missao concluida ({n} waypoints)")
 
+    def job_map_explore(self, gx, gy):
+        """Geracao automatica de mapa: liga o mapeamento, roda A->B em modo
+        LENTO (contorna os obstaculos devagar p/ mapear limpo) e, ao chegar
+        em B (ou parar), encerra e salva o mapa."""
+        with self.clock:
+            self.trail = []; self.arrived = False; self.telem = {}
+        self.goal = {"x": gx, "y": gy}
+        mapper.start("auto_" + time.strftime("%Y%m%d_%H%M%S"), 50.0)
+        self.running = True; self.manual = False
+        self.run_started = time.time()
+        self.job["detail"] = "mapeando A->B (contorno lento)..."
+        self.scan_reset()
+        self.cmd(f"cd {REMOTE_DIR} && ./patrulha --slow --gx {gx:g} --gy {gy:g}")
+        arrived = self.wait_for(r"CHEGOU", 300)
+        if not arrived:
+            self.stop()          # Ctrl-C: para o robo
+        self.running = False
+        time.sleep(0.6)
+        mapper.stop()
+        mapper.save()
+        snap = mapper.snapshot()
+        cells = len(snap.get("cells", []))
+        if arrived:
+            self.job.update(status="ok", detail=f"mapa A->B salvo ({cells} celulas)")
+        else:
+            self.job.update(status="error", detail=f"timeout; mapa parcial salvo ({cells} celulas)")
+
     def job_compile(self):
         self._compile()
 
@@ -1268,6 +1295,24 @@ def map_navigate():
     if not ok:
         return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
     return jsonify({"ok": True, "map": sess, "waypoints": wps})
+
+
+@app.post("/api/map/explore")
+def map_explore():
+    """Geracao automatica de mapa: roda A->B em modo lento com o mapeamento
+    ligado e salva o mapa ao final. Alvo (gx,gy) do card Missao."""
+    err = _need_free_for_job()
+    if err:
+        return err
+    j = request.json or {}
+    try:
+        gx = float(j.get("gx")); gy = float(j.get("gy"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "alvo (gx,gy) invalido"}), 400
+    ok = link.start_job("explore", link.job_map_explore, gx, gy)
+    if not ok:
+        return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
+    return jsonify({"ok": True})
 
 
 @app.post("/api/map/start")

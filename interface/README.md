@@ -8,6 +8,10 @@ Ele usa o `app.py` como ponte entre o navegador e o robo:
 - conecta por SSH quando o robo estiver na mesma rede Wi-Fi;
 - executa `patrulha` com alvo, trim, loop, diagnostico e timeout;
 - executa `patrulha --teleop` para controle manual tipo carrinho remoto;
+- **gera mapa A->B automaticamente** (`Mapear A->B (auto)` -> `patrulha --slow`):
+  vai de A a B devagar, contorna os obstaculos e salva o mapa sozinho;
+- **navega por A\*** (`Navegar pelo mapa (A*)`): planeja sobre o ultimo mapa salvo
+  e dirige o robo pelos waypoints via `patrulha --mission`;
 - mostra telemetria, sensores, bateria, console e trajetoria;
 - cria mapa passivo com grade de ocupacao e grafo topologico;
 - envia `main.c` local para o robo e recompila;
@@ -90,9 +94,11 @@ rede Wi-Fi (ou vice-versa).
 2. No USB, selecione a porta serial. No Wi-Fi, use `Procurar robos no Wi-Fi`.
 3. Use `Enviar + compilar` para sincronizar o `khepera_real/patrulha/main.c`.
 4. Teste primeiro em `Diagnostico` ou com as rodas suspensas.
-5. Para mapear, clique em `Iniciar mapa` antes de mover o robo.
-6. Para controle manual, clique em `Entrar no controle` e segure os botoes de direcao.
-7. Para missao autonoma, rode com timeout curto e acompanhe a telemetria.
+5. Para controle manual, clique em `Entrar no controle` e segure os botoes de direcao.
+6. Para missao autonoma A->B, defina o alvo `(X,Y)` e clique `Iniciar`.
+7. Para **gerar o mapa**, clique `Mapear A->B (auto)` (ele mapeia e salva sozinho) — ou
+   ligue `Iniciar mapa` manualmente antes de rodar um A->B.
+8. Com um mapa salvo, clique `Navegar pelo mapa (A*)` para ir ao alvo pelo caminho planejado.
 
 Para comandos manuais, use o console da propria pagina. `Ctrl-C` e enviado pelo
 botao `Parar`.
@@ -110,15 +116,42 @@ Cada sessao de mapeamento e salva em `interface/maps/<sessao>/`:
 - `grid.json`: grade de ocupacao com celulas `free`, `visited` e `occupied`;
 - `graph.json`: grafo topologico com nos e arestas navegaveis.
 
-O mapa e passivo: ele nao muda a decisao do robo ainda. Ele observa pose,
-sensores frontais e trajeto para construir uma representacao limpa que depois
-pode alimentar A*, Dijkstra ou outro planejador.
+O mapa observa pose, sensores frontais e trajeto para construir uma grade de
+ocupacao limpa. Ele ja alimenta o planejador A* (abaixo).
+
+## Geracao automatica de mapa (Mapear A->B)
+
+O botao **Mapear A->B (auto)** faz tudo num passo: liga o mapeamento, roda o robo
+de A ate o alvo `(X,Y)` em **modo lento** (`patrulha --slow`, metade da velocidade
+linear) para contornar os obstaculos devagar e amostrar melhor, e ao chegar em B
+(ou parar) encerra e **salva o mapa** em `interface/maps/<sessao>/`.
+Endpoint: `POST /api/map/explore {gx,gy}`.
+
+## Planejamento e navegacao por A\* (Navegar pelo mapa)
+
+O botao **Navegar pelo mapa (A*)** planeja um caminho sobre o **ultimo mapa salvo**
+e dirige o robo pelos waypoints:
+
+1. `planner.py` roda um A* 8-conexo sobre o `grid.json`: celulas `occupied` dilatadas
+   pelo raio do robo = bloqueadas; o resto (inclusive nao observado) = livre; o caminho
+   e simplificado por linha-de-visada em poucos waypoints.
+2. O robo sobe em **modo missao** (`patrulha --mission`) e recebe cada `goto X Y` pela
+   serial, mantendo a **odometria continua** entre os trechos; o Bug2 reativo ainda
+   cuida de obstaculos nao mapeados.
+
+Endpoint: `POST /api/map/navigate {gx,gy}`.
+
+> **Referencial:** a odometria zera a cada missao, entao o mapa e o alvo valem no
+> **mesmo referencial** (robo comeca na origem do mapa). Sem localizacao persistente,
+> mapas de sessoes diferentes nao se alinham — gere o mapa e navegue a partir do
+> mesmo ponto de partida.
 
 ## Depois
 
-Proximos incrementos uteis para Wi-Fi/tablet:
+Proximos incrementos uteis:
 
-- identificacao mais precisa do Khepera quando houver varios dispositivos SSH na rede;
+- localizacao persistente (corrigir a deriva da odometria entre sessoes) para reusar mapas;
+- expor os ganhos do ponto-P (`K_CT`, `LOOKAHEAD_MM`, `KI_CT`) no card de parametros;
+- metricas ISE/ITSE do erro lateral a partir do `telemetry.ndjson` (validacao quantitativa);
 - HTTPS/autenticacao para uso fora da maquina local;
-- layout mobile dedicado para controle manual em tablet/celular;
-- perfis salvos para mais de um robo.
+- layout mobile dedicado para controle manual em tablet/celular.

@@ -810,12 +810,13 @@
             </div>
             <div class="actions">
               <button id="runBtn" class="primary" type="button">Iniciar</button>
+              <button id="mapExploreBtn" type="button">Mapear A-&gt;B (auto)</button>
               <button id="mapNavBtn" type="button">Navegar pelo mapa (A*)</button>
               <button id="stopBtn" class="danger" type="button">Parar</button>
               <button id="deployBtn" type="button">Enviar + compilar</button>
               <button id="compileBtn" type="button">Compilar</button>
             </div>
-            <p class="hint">Use duracao 0 para rodar sem <code>timeout</code>. Para teste em bancada, comece com rodas suspensas. <strong>Navegar pelo mapa</strong> planeja A* sobre o ultimo mapa salvo e dirige o robo pelos waypoints ate o alvo (X,Y).</p>
+            <p class="hint">Use duracao 0 para rodar sem <code>timeout</code>. Para teste em bancada, comece com rodas suspensas. <strong>Mapear A-&gt;B (auto)</strong> vai de A a B devagar, contorna os obstaculos e gera/salva o mapa sozinho. <strong>Navegar pelo mapa</strong> planeja A* sobre o ultimo mapa salvo e dirige o robo pelos waypoints ate o alvo (X,Y).</p>
           </div>
         </section>
 
@@ -1481,6 +1482,7 @@
         input.disabled = connected;
       }
       el("runBtn").disabled = !connected || busy || running;
+      el("mapExploreBtn").disabled = !connected || busy || running;
       el("mapNavBtn").disabled = !connected || busy || running;
       el("stopBtn").disabled = !connected || !running;
       el("deployBtn").disabled = !connected || busy || running;
@@ -1752,6 +1754,16 @@
       }
     }
 
+    async function exploreMap() {
+      const payload = { gx: Number(el("gxInput").value), gy: Number(el("gyInput").value) };
+      try {
+        await api("/api/map/explore", {method: "POST", body: JSON.stringify(payload)});
+        showStatus(`Gerando mapa automatico ate (${payload.gx},${payload.gy})... deixe o robo concluir.`, "ok");
+      } catch (error) {
+        showStatus(error.message, "error");
+      }
+    }
+
     async function navigateMap() {
       const payload = { gx: Number(el("gxInput").value), gy: Number(el("gyInput").value) };
       try {
@@ -1922,6 +1934,7 @@
       el("connectBtn").addEventListener("click", connect);
       el("disconnectBtn").addEventListener("click", disconnect);
       el("runBtn").addEventListener("click", runMission);
+      el("mapExploreBtn").addEventListener("click", exploreMap);
       el("mapNavBtn").addEventListener("click", navigateMap);
       el("stopBtn").addEventListener("click", stopMission);
       el("startManualBtn").addEventListener("click", startManual);

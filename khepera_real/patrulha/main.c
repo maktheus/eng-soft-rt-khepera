@@ -31,6 +31,8 @@
  *   ./patrulha --mission       recebe waypoints "goto X Y" pela serial, com a
  *                              odometria continua (usado pelo planejador A* da
  *                              interface sobre o mapa gerado)
+ *   ./patrulha --slow          metade da velocidade linear -> contorno lento e
+ *                              limpo (usado na geracao automatica de mapa A->B)
  *   ./patrulha -t 0.03         trim se o robo puxa pra um lado
  */
 #include "khepera4.h"
@@ -255,6 +257,8 @@ int main(int argc, char *argv[]){
     double gy   = commandline_option_value_float("-y","--gy",GOAL_Y_DEF);
     int    loop = commandline_option_provided("-l","--loop");
     int    mission = commandline_option_provided("-M","--mission");  /* waypoints via stdin */
+    int    slow = commandline_option_provided("-w","--slow");        /* contorno lento p/ mapear */
+    double vscale = slow ? 0.5 : 1.0;                                 /* escala da velocidade linear */
 
     khepera4_drive_start();
     khepera4_drive_reset_position(); usleep(120000);
@@ -425,7 +429,7 @@ int main(int argc, char *argv[]){
 
         diff = clampd(diff,-DIFF_MAX,DIFF_MAX);
         fwd_s=(1-ALPHA)*fwd_s+ALPHA*forward; diff_s=(1-ALPHA)*diff_s+ALPHA*diff;
-        khepera4_drive_set_speed_differential(SPEED, fwd_s, diff_s + trim);
+        khepera4_drive_set_speed_differential(SPEED, fwd_s*vscale, diff_s + trim);
 
         if(++tick%15==0){
             printf("[%s%s] pose=(%.0f,%.0f,%.0fd) d_goal=%.0f d_line=%+.0f herr=%+.0fd | F/FL/FR=%d/%d/%d | chao=%d bat=%umV\n",
