@@ -64,7 +64,7 @@
 
 \begin{abstract}
 \noindent
-Este relatório apresenta o projeto, a implementação e a avaliação experimental de um controlador de navegação autônoma para o robô móvel de tração diferencial Khepera~IV, com o objetivo de deslocá-lo de uma configuração inicial a uma configuração-alvo em um ambiente povoado por obstáculos, sem colisões, em condições representativas de competições de robótica. O trabalho foi conduzido no simulador Webots R2025a, utilizando o modelo oficial do Khepera~IV. Propõe-se uma \emph{arquitetura híbrida} que combina uma camada deliberativa mínima de atração ao alvo (controle proporcional de rumo a partir de localização por GPS e unidade inercial) com uma camada reativa de desvio de obstáculos inspirada nos campos potenciais e nos veículos de Braitenberg, arbitradas por uma \emph{máquina de estados finitos} (\textsc{Navegar}, \textsc{Girar}, \textsc{Contornar}) que introduz \emph{compromisso de contorno} no espírito dos algoritmos Bug, eliminando o aprisionamento em mínimos locais. Reporta-se, ainda, uma contribuição metodológica: a calibração \emph{empírica} dos sensores infravermelhos por meio de telemetria instrumentada, que revelou uma discrepância significativa entre a leitura prevista em folha de dados ($\approx 29$) e a leitura medida em espaço livre ($\approx 110$), causada pela reflexão do piso. A análise dos registros de execução permitiu diagnosticar e corrigir duas falhas distintas (aprisionamento em mínimo local e rodopio por má calibração). Na configuração final, o robô percorreu a trajetória de forma livre de colisões, reduzindo a distância ao alvo de $2{,}83$~m a menos de $0{,}07$~m em $19{,}3$~s de tempo simulado. Discute-se a relação do laço de controle com o modelo de tarefa periódica de sistemas de tempo real e indicam-se caminhos de evolução (odometria, VFH, DWA e planejamento global).
+Este relatório apresenta o projeto, a implementação e a avaliação experimental de um controlador de navegação autônoma para o robô móvel de tração diferencial Khepera~IV, com o objetivo de deslocá-lo de uma configuração inicial a uma configuração-alvo em um ambiente povoado por obstáculos, sem colisões, em condições representativas de competições de robótica. O trabalho foi conduzido no simulador Webots R2025a, utilizando o modelo oficial do Khepera~IV. Propõe-se uma \emph{arquitetura híbrida} que combina uma camada deliberativa mínima de atração ao alvo (controle proporcional de rumo a partir de localização por GPS e unidade inercial) com uma camada reativa de desvio de obstáculos inspirada nos campos potenciais e nos veículos de Braitenberg, arbitradas por uma \emph{máquina de estados finitos} (\textsc{Navegar}, \textsc{Girar}, \textsc{Contornar}) que introduz \emph{compromisso de contorno} no espírito dos algoritmos Bug, eliminando o aprisionamento em mínimos locais. Reporta-se, ainda, uma contribuição metodológica: a calibração \emph{empírica} dos sensores infravermelhos por meio de telemetria instrumentada, que revelou uma discrepância significativa entre a leitura prevista em folha de dados ($\approx 29$) e a leitura medida em espaço livre ($\approx 110$), causada pela reflexão do piso. A análise dos registros de execução permitiu diagnosticar e corrigir duas falhas distintas (aprisionamento em mínimo local e rodopio por má calibração). Na configuração final, o robô percorreu a trajetória de forma livre de colisões, reduzindo a distância ao alvo de $2{,}83$~m a menos de $0{,}07$~m em $19{,}3$~s de tempo simulado. Discute-se a relação do laço de controle com o modelo de tarefa periódica de sistemas de tempo real. Documenta-se, por fim, a \emph{evolução para o robô físico}: substituição do GPS por odometria, \emph{rastreamento de linha por ponto de controle virtual} (malha cinemática de controle em cascata) e uma camada deliberativa de \emph{mapeamento com planejamento global $A^\star$}.
 
 \vspace{6pt}
 \noindent\textbf{Palavras-chave:} robótica móvel; navegação autônoma; desvio de obstáculos; Khepera~IV; campos potenciais; máquina de estados; sistemas de tempo real; Webots.
@@ -99,7 +99,7 @@ Seja $\mathbf{p}=(x,y)$ a posição do robô no plano e $\mathbf{p}_g=(x_g,y_g)$
 As principais contribuições deste relatório são: (i) uma arquitetura de controle híbrida arbitrada por máquina de estados finitos que une atração ao alvo, desvio reativo e \emph{contorno comprometido} de obstáculos; (ii) uma metodologia de calibração empírica do sensoriamento infravermelho baseada em instrumentação e análise de telemetria, evidenciando o perigo de confiar cegamente em folhas de dados; e (iii) uma análise experimental, com dados reais de execução, do fenômeno de mínimo local e de sua mitigação.
 
 \subsection{Organização}
-A Seção~\ref{sec:fund} apresenta a fundamentação teórica e a revisão da literatura. A Seção~\ref{sec:metodo} descreve materiais e métodos. A Seção~\ref{sec:resultados} expõe e discute os resultados. A Seção~\ref{sec:conclusao} conclui e aponta trabalhos futuros.
+A Seção~\ref{sec:fund} apresenta a fundamentação teórica e a revisão da literatura. A Seção~\ref{sec:metodo} descreve materiais e métodos. A Seção~\ref{sec:resultados} expõe e discute os resultados. A Seção~\ref{sec:real} documenta a evolução para o robô físico (odometria, rastreamento por ponto de controle virtual e planejamento $A^\star$ sobre mapa). A Seção~\ref{sec:conclusao} conclui e aponta trabalhos futuros.
 
 % =====================================================================
 \section{Fundamentação Teórica e Revisão da Literatura}\label{sec:fund}
@@ -387,9 +387,66 @@ Obstáculos contornados & $5$ (caixas) \\
 Os resultados confirmam que a arquitetura híbrida com compromisso de contorno resolve a tarefa proposta de forma robusta, superando as duas falhas diagnosticadas. Três pontos merecem destaque. \emph{Primeiro}, a importância da \textbf{observabilidade}: a telemetria instrumentada foi o instrumento decisivo de depuração --- coerente com a prática de engenharia de software de tempo real, em que a inspeção do laço de controle é essencial. \emph{Segundo}, a \textbf{calibração empírica}: o caso ilustra de modo contundente os riscos de confiar em folhas de dados sem medição. \emph{Terceiro}, as \textbf{limitações}: (i) a abordagem reativa não é completa --- geometrias adversas (p.\,ex.\ armadilhas em ``U'' profundas) ainda podem desafiar a heurística de escape; (ii) o uso de GPS é uma simplificação de simulação; e (iii) o curto alcance do IR impõe velocidade de cruzeiro moderada, sob pena de reação tardia (um \emph{trade-off} de tempo real entre velocidade e distância de reação).
 
 % =====================================================================
+\section{Evolução para o Robô Físico Khepera~IV}\label{sec:real}
+% =====================================================================
+Esta seção documenta a \emph{evolução pós-entrega} do trabalho: a migração do controlador da simulação para o \textbf{Khepera~IV físico} do CETELI e a implementação de vários dos itens elencados como trabalhos futuros --- notadamente a troca do GPS por \emph{odometria} (item~i) e o acréscimo de uma \emph{camada deliberativa com mapeamento e planejamento global $A^\star$} (item~iv). O código correspondente vive em \texttt{khepera\_real/patrulha/main.c} e em uma interface web de operação (\texttt{interface/}).
+
+\subsection{Odometria e o algoritmo Bug2 no robô real}
+Sem GPS no robô físico, a pose $(x,y,\theta)$ passa a ser estimada por \textbf{odometria} pela integração dos encoders ($147{,}4$~pulsos/mm; bitola $L=105{,}4$~mm):
+\begin{align}
+  \Delta c = \tfrac12(\Delta_L+\Delta_R), \quad
+  \Delta\theta = \frac{\Delta_R-\Delta_L}{L}, \quad
+  x \mathrel{+}= \Delta c\cos\!\big(\theta+\tfrac{\Delta\theta}{2}\big),\;
+  y \mathrel{+}= \Delta c\sin\!\big(\theta+\tfrac{\Delta\theta}{2}\big),
+\end{align}
+sujeita a \emph{deriva} acumulada, o gargalo de exatidão do sistema. A FSM da simulação foi substituída pelo \textbf{Bug2} \cite{lumelsky1987} em sua forma canônica: estado \textsc{Goal} (segue a linha $A\!\to\!B$), estado \textsc{Wall-follow} (contorna o obstáculo mantendo-o de um lado) e a \emph{leave condition} --- larga a parede assim que \textbf{recruza a linha $A\!\to\!B$ num ponto mais próximo de $B$} do que aquele em que a encontrou. É esse recruzamento que garante o retorno ao eixo.
+
+\subsection{Rastreamento de linha por ponto de controle virtual (ponto-P)}
+No controlador de simulação, o estado \textsc{Navegar} apenas \emph{mirava} no alvo ($\omega=K_\theta e_\theta$), ignorando o \emph{erro lateral} à linha $A\!\to\!B$. A consequência prática, observada no robô real, é que após um contorno o robô cortava em diagonal até $B$ em vez de \emph{voltar ao eixo}. Adotou-se então a malha externa (cinemática) de um \textbf{controle em cascata}, na forma de um \emph{ponto de controle virtual} $P$ situado a uma distância $d$ à frente do eixo das rodas.
+
+Seja $\mathbf{u}=(u_x,u_y)$ a direção unitária $A\!\to\!B$ e $\mathbf{p}=(x-x_A,\,y-y_A)$. O erro lateral \emph{sinalizado} à linha é
+\begin{equation}
+  d_\ell = u_x\,p_y - u_y\,p_x,
+\end{equation}
+positivo quando o robô está à esquerda da linha. O rumo desejado combina o \emph{avanço} na direção da linha com uma \emph{correção} proporcional-integral do desvio, com um \emph{governador} anti-windup que congela o integrador na saturação:
+\begin{align}
+  \theta_{\text{ref}} &= \operatorname{atan2}(u_y,u_x) \;-\; \operatorname{atan2}\!\Big(K_{ct}\,d_\ell + K_{i}\!\!\int\! d_\ell\,dt,\;\; d\Big), \\
+  \omega &= -\,K_\theta\,\operatorname{wrap}(\theta_{\text{ref}}-\theta).
+\end{align}
+Longe da linha ($|d_\ell|$ grande) o rumo tende à \emph{perpendicular} que reaproxima o robô do eixo; sobre a linha ($d_\ell\!\to\!0$) tende ao \emph{paralelo}, avançando reto para $B$ (Figura~\ref{fig:pontoP}). Assim, ao sair do contorno, o robô \textbf{volta ao eixo $A\!\to\!B$} --- a correção exata da re-aquisição da linha no Bug2. O ganho integral dispensa o \emph{trim} manual de viés, e a estrutura é alternável em tempo de compilação (\texttt{USE\_POINT\_P}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth,scale=1.15]
+  % linha A->B
+  \draw[thick,gray] (-0.5,0) -- (7,0);
+  \node[left,gray] at (-0.5,0) {$A$};
+  \node[right,gray] at (7,0) {$B$};
+  \draw[->,gray] (3,0) -- (4,0) node[below,font=\scriptsize]{$\mathbf{u}$};
+  % robo fora da linha
+  \coordinate (R) at (2,1.6);
+  \fill[blue!60] (R) circle (0.16);
+  \node[above left,font=\scriptsize,blue!60!black] at (R) {robô $(x,y,\theta)$};
+  % erro lateral
+  \draw[<->,red] (2,0) -- (R) node[midway,right,font=\scriptsize,red]{$d_\ell$};
+  % ponto P e rumo desejado
+  \draw[->,thick,teal] (R) -- ++(1.2,-0.9) node[right,font=\scriptsize,teal]{$\theta_{\text{ref}}$ (ponto-$P$)};
+  \draw[dashed,teal!70] (R) -- ++(1.5,0) node[right,font=\scriptsize,teal!70]{paralelo (se $d_\ell{=}0$)};
+\end{tikzpicture}
+\caption{Rastreamento por ponto de controle virtual: o rumo desejado curva-se para reduzir o erro lateral $d_\ell$ e realinhar o robô à linha $A\!\to\!B$.}
+\label{fig:pontoP}
+\end{figure}
+
+\subsection{Camada deliberativa: mapa de ocupação e planejamento $A^\star$}
+Realiza-se aqui o trabalho futuro~(iv). Enquanto o robô anda, a interface constrói uma \textbf{grade de ocupação} a partir da telemetria (pose + sensores frontais), com células \texttt{free}, \texttt{visited} e \texttt{occupied}. Sobre essa grade roda um \textbf{$A^\star$} 8-conexo \cite{hart1968astar} (\texttt{interface/planner.py}): as células ocupadas são \emph{dilatadas} pelo raio do robô (espaço de configuração), o não observado é tratado como livre (otimista, pois o Bug2 reativo cobre o imprevisto), e o caminho é simplificado por \emph{linha-de-visada} em poucos \emph{waypoints}. O robô os percorre em um \textbf{modo missão} (\texttt{--mission}) que recebe metas \texttt{goto X Y} pela serial mantendo a \emph{odometria contínua} entre trechos. Persiste a limitação de \textbf{referencial}: como a odometria reinicia a cada missão e deriva, mapa e alvo só são coerentes no mesmo referencial --- uma localização persistente (item de trabalho futuro remanescente) seria necessária para reuso entre sessões.
+
+\subsection{Geração automática de mapa e interface de operação}
+Um modo de \textbf{mapeamento automático} (\texttt{--slow}) leva o robô de $A$ a $B$ em \emph{meia velocidade}, contornando os obstáculos devagar para amostrar melhor, e salva o mapa ao final. Toda a operação ocorre por uma \textbf{interface web} (Flask) que conecta ao robô por USB (console serial) ou Wi-Fi/SSH, faz \emph{deploy} e recompilação do \texttt{main.c} no próprio robô, expõe telemetria, controle manual, mapeamento e os fluxos acima. Do ponto de vista de \textbf{tempo real}, o laço de controle embarcado permanece uma tarefa periódica (período nominal de $40$~ms), preservando o modelo discutido na Seção~\ref{sec:fund}.
+
+% =====================================================================
 \section{Conclusão e Trabalhos Futuros}\label{sec:conclusao}
 % =====================================================================
-Apresentou-se um controlador de navegação ponto-a-ponto com desvio de obstáculos para o Khepera~IV em ambiente Webots, fundamentado na literatura clássica de robótica móvel e validado com dados reais de execução. A arquitetura híbrida arbitrada por máquina de estados finitos, aliada à calibração empírica do sensoriamento, conduziu o robô ao alvo de forma livre de colisões em $19{,}3$~s, reduzindo a distância de $2{,}83$~m a menos de $0{,}07$~m. O processo de depuração baseado em telemetria mostrou-se tão instrutivo quanto o resultado, evidenciando os fenômenos de mínimo local e de descalibração sensorial.
+Apresentou-se um controlador de navegação ponto-a-ponto com desvio de obstáculos para o Khepera~IV em ambiente Webots, fundamentado na literatura clássica de robótica móvel e validado com dados reais de execução. A arquitetura híbrida arbitrada por máquina de estados finitos, aliada à calibração empírica do sensoriamento, conduziu o robô ao alvo de forma livre de colisões em $19{,}3$~s, reduzindo a distância de $2{,}83$~m a menos de $0{,}07$~m. O processo de depuração baseado em telemetria mostrou-se tão instrutivo quanto o resultado, evidenciando os fenômenos de mínimo local e de descalibração sensorial. A Seção~\ref{sec:real} documentou ainda a evolução para o \textbf{robô físico}, na qual vários dos trabalhos futuros abaixo já foram concretizados: odometria, rastreamento de linha por ponto de controle virtual e uma camada deliberativa de mapeamento com planejamento $A^\star$.
 
 Como trabalhos futuros, propõem-se: (i) substituir o GPS por \emph{odometria} via encoders, aproximando-se do robô físico do CETELI e expondo o problema de deriva; (ii) incorporar os sensores ultrassônicos como ``antecipação'' de longo alcance, suavizando o desvio; (iii) adotar métodos reativos mais robustos como VFH \cite{borenstein1991vfh} ou DWA \cite{fox1997dwa}; e (iv) acrescentar uma camada deliberativa com mapeamento e planejamento global ($A^\star$/RRT) para ambientes que exijam completude. Por fim, recomenda-se a análise formal de escalonabilidade do laço de controle sob o modelo de tarefas periódicas \cite{liu1973}, fechando a ponte com a teoria de sistemas de tempo real.
 
