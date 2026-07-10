@@ -77,6 +77,17 @@ def plan_waypoints(grid, start_xy, goal_xy):
     def h(a, b):
         return math.hypot(a[0] - b[0], a[1] - b[1])
 
+    def can_step(cur, di, dj):
+        nb = (cur[0] + di, cur[1] + dj)
+        if not inb(*nb) or nb in blocked:
+            return False
+        # Nao corta quina: em diagonal, os dois vizinhos ortogonais precisam
+        # estar livres para a footprint dilatada do robo passar com folga.
+        if di and dj and ((cur[0] + di, cur[1]) in blocked or
+                          (cur[0], cur[1] + dj) in blocked):
+            return False
+        return True
+
     openh = [(h(s, g), 0.0, s)]
     came = {}
     gscore = {s: 0.0}
@@ -90,10 +101,7 @@ def plan_waypoints(grid, start_xy, goal_xy):
         closed.add(cur)
         for di, dj in neigh:
             nb = (cur[0] + di, cur[1] + dj)
-            if not inb(*nb) or nb in blocked or nb in closed:
-                continue
-            # nao "cortar quina" entre dois bloqueados na diagonal
-            if di and dj and ((cur[0] + di, cur[1]) in blocked and (cur[0], cur[1] + dj) in blocked):
+            if nb in closed or not can_step(cur, di, dj):
                 continue
             step = math.hypot(di, dj)
             ng = gc + step
@@ -123,11 +131,14 @@ def plan_waypoints(grid, start_xy, goal_xy):
                 return False
             if (x, y) == (x1, y1):
                 return True
+            px, py = x, y
             e2 = 2 * err
             if e2 > -dy:
                 err -= dy; x += sx
             if e2 < dx:
                 err += dx; y += sy
+            if not can_step((px, py), x - px, y - py):
+                return False
 
     simp = [path[0]]
     k = 0

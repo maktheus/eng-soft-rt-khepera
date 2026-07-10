@@ -15,6 +15,7 @@ Uso:  python app.py   ->   http://localhost:8340
 """
 import base64
 import concurrent.futures
+import csv
 import glob
 import hashlib
 import ipaddress
@@ -43,8 +44,17 @@ except ImportError:  # dependencia opcional para manter USB funcionando
 import planner  # A* sobre o mapa de ocupacao gerado
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.normpath(os.path.join(BASE, ".."))
 LOCAL_MAIN = os.path.normpath(os.path.join(BASE, "..", "khepera_real", "patrulha", "main.c"))
+LOCAL_CONTROLLER_CONFIG = os.path.normpath(os.path.join(BASE, "..", "khepera_real", "patrulha", "controller_config.h"))
+LOCAL_CONTROLLER_CORE = os.path.normpath(os.path.join(BASE, "..", "khepera_real", "patrulha", "controller_core.h"))
 MAPS_DIR = os.path.join(BASE, "maps")
+SIM_DIR = os.path.join(ROOT, "tools", "sim_khepera")
+SIM_GENERATOR = os.path.join(SIM_DIR, "generate_worlds.py")
+SIM_BUILD = os.path.join(SIM_DIR, "build.ps1")
+SIM_WORLD_DEFAULT = os.path.join(SIM_DIR, "worlds_1000.json")
+SIM_OUT_DIR = os.path.join(SIM_DIR, "out_gl")
+SIM_SELECTED = {"worlds": SIM_WORLD_DEFAULT, "out_dir": SIM_OUT_DIR}
 REMOTE_DIR = "/home/root/khepera4toolbox/app/patrulha"
 BUILD_CMD = (
     f"cd {REMOTE_DIR} && gcc -Wall "
@@ -60,8 +70,10 @@ BUILD_CMD = (
 DEFINES = [
     "SPEED", "KP_HEAD", "HEAD_SLOW", "IR_BASE", "FRONT_SPAN", "FRONT_BLOCK",
     "FRONT_CRIT", "FRONT_CLEAR", "WALL_TARGET", "KP_WALL", "ARRIVE_MM",
-    "CLIFF_THR", "LINE_EPS", "PROGRESS_MM", "WHEELBASE_MM", "BATT_LOW_MV",
+    "CLIFF_THR", "LINE_EPS", "PROGRESS_MM", "WALL_LOST", "WALL_MIN_MM",
+    "WHEELBASE_MM", "BATT_LOW_MV",
 ]
+MAIN_DEFINES = {"SPEED", "WHEELBASE_MM", "BATT_LOW_MV"}
 
 TELEM_RE = re.compile(
     r"\[(GOAL|WALLF)(?:-([ED]))?\s*\]\s*pose=\((-?\d+),(-?\d+),(-?\d+)d\)\s*"
@@ -88,17 +100,96 @@ COMMON_ROBOT_HOSTS = [
 ]
 
 
+def _repo_rel(path):
+    try:
+        return os.path.relpath(path, ROOT).replace("\\", "/")
+    except ValueError:
+        return path
+
+
+def _repo_path(value, default_path):
+    raw = (value or "").strip()
+    path = raw if raw else default_path
+    if not os.path.isabs(path):
+        path = os.path.join(ROOT, path)
+    path = os.path.abspath(os.path.normpath(path))
+    root = os.path.abspath(ROOT)
+    if path != root and not path.startswith(root + os.sep):
+        raise ValueError("caminho precisa ficar dentro do repositorio")
+    return path
+
+
+def _sim_world_count(worlds_path):
+    try:
+        with open(worlds_path, encoding="utf-8") as f:
+            data = json.load(f)
+        meta_count = int(data.get("metadata", {}).get("count") or 0)
+        scenarios = data.get("scenarios") or []
+        return meta_count or len(scenarios)
+    except Exception:
+        return 0
+
+
+def sim_snapshot(worlds_path=None, out_dir=None):
+    worlds_path = worlds_path or SIM_WORLD_DEFAULT
+    out_dir = out_dir or SIM_OUT_DIR
+    summary_path = os.path.join(out_dir, "summary.txt")
+    out = {
+        "worlds": _repo_rel(worlds_path),
+        "world_exists": os.path.exists(worlds_path),
+        "world_count": _sim_world_count(worlds_path) if os.path.exists(worlds_path) else 0,
+        "out_dir": _repo_rel(out_dir),
+        "summary_exists": os.path.exists(summary_path),
+        "total": 0,
+        "arrived": 0,
+        "failed": 0,
+        "collisions": 0,
+        "timeouts": 0,
+        "failures": [],
+        "summary": _repo_rel(summary_path),
+    }
+    if not os.path.exists(summary_path):
+        return out
+    try:
+        with open(summary_path, newline="", encoding="utf-8", errors="replace") as f:
+            for row in csv.DictReader(f):
+                status = (row.get("status") or "").strip()
+                name = (row.get("scenario") or "").strip()
+                out["total"] += 1
+                if status == "ARRIVED":
+                    out["arrived"] += 1
+                else:
+                    out["failed"] += 1
+                    if status == "COLLISION":
+                        out["collisions"] += 1
+                    elif status == "TIMEOUT":
+                        out["timeouts"] += 1
+                    if len(out["failures"]) < 12:
+                        out["failures"].append({
+                            "scenario": name,
+                            "status": status,
+                            "time_s": row.get("time_s", ""),
+                            "final_goal_mm": row.get("final_goal_mm", ""),
+                            "wall_entries": row.get("wall_entries", ""),
+                        })
+        out["mtime"] = int(os.path.getmtime(summary_path))
+    except Exception as e:
+        out["summary_error"] = str(e)
+    return out
+
+
 def local_defines():
     """Valores default dos #define lidos do main.c do repositorio."""
     vals = {}
-    try:
-        with open(LOCAL_MAIN, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                m = re.match(r"#define\s+(\w+)\s+([0-9.eE+-]+)", line)
-                if m and m.group(1) in DEFINES:
-                    vals[m.group(1)] = m.group(2)
-    except OSError:
-        pass
+    for path in (LOCAL_MAIN, LOCAL_CONTROLLER_CONFIG):
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    m = re.match(r"#define\s+(\w+)\s+([0-9.eE+-]+)", line)
+                    if m and m.group(1) in DEFINES:
+                        vals[m.group(1)] = m.group(2)
+        except OSError:
+            pass
     return vals
 
 
@@ -830,6 +921,67 @@ class RobotLink:
                 self.console = self.console[cut:]
                 self.console_base += cut
 
+    def _run_local_process(self, cmd, detail_prefix="sim"):
+        pretty = subprocess.list2cmdline([str(x) for x in cmd])
+        self._log(f"[{detail_prefix}] $ {pretty}")
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if platform.system() == "Windows" else 0
+        proc = subprocess.Popen(
+            [str(x) for x in cmd],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=flags,
+        )
+        assert proc.stdout is not None
+        last_line = ""
+        for line in proc.stdout:
+            line = line.rstrip()
+            if not line:
+                continue
+            last_line = line
+            self._log(f"[{detail_prefix}] {line}")
+            if self.job and self.job.get("status") == "running":
+                self.job["detail"] = line[-160:]
+        code = proc.wait()
+        if code != 0:
+            raise RuntimeError(f"processo local falhou ({code}): {last_line or pretty}")
+
+    def job_sim_generate(self, count, out_path):
+        self.job["detail"] = f"gerando {count} mundos..."
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        self._run_local_process(
+            ["python", SIM_GENERATOR, "--count", str(count), "--out", out_path],
+            detail_prefix="sim-gen",
+        )
+        self.job.update(status="ok", detail=f"JSON gerado: {_repo_rel(out_path)} ({count} mundos)")
+
+    def job_sim_batch(self, worlds_path, out_dir):
+        if not os.path.exists(worlds_path):
+            raise RuntimeError(f"JSON nao encontrado: {_repo_rel(worlds_path)}")
+        os.makedirs(out_dir, exist_ok=True)
+        self.job["detail"] = f"validando {_repo_rel(worlds_path)}..."
+        self._run_local_process(
+            [
+                "powershell",
+                "-ExecutionPolicy", "Bypass",
+                "-File", SIM_BUILD,
+                "-OutDir", out_dir,
+                "-Worlds", worlds_path,
+            ],
+            detail_prefix="sim-batch",
+        )
+        snap = sim_snapshot(worlds_path, out_dir)
+        if snap.get("failed"):
+            self.job.update(
+                status="error",
+                detail=f"{snap['failed']} falha(s): {snap['arrived']}/{snap['total']} chegaram",
+            )
+        else:
+            self.job.update(status="ok", detail=f"{snap['arrived']}/{snap['total']} chegaram")
+
     def _handle_line(self, line):
         if not line.strip():
             return
@@ -988,28 +1140,39 @@ class RobotLink:
         threading.Thread(target=wrap, daemon=True).start()
         return True
 
-    def job_deploy(self, compile_after):
-        with open(LOCAL_MAIN, "rb") as f:
+    def _upload_file_b64(self, local_path, remote_name):
+        with open(local_path, "rb") as f:
             data = f.read().replace(b"\r\n", b"\n")
         md5 = hashlib.md5(data).hexdigest()
         b64 = base64.b64encode(data).decode()
         chunks = [b64[i:i + 120] for i in range(0, len(b64), 120)]
-        self._log(f"[interface] enviando main.c ({len(data)} bytes, md5 {md5[:8]}...)")
+        self._log(f"[interface] enviando {remote_name} ({len(data)} bytes, md5 {md5[:8]}...)")
         self.cmd("rm -f /tmp/up.b64", echo=False)
         time.sleep(0.3)
         for i, ch in enumerate(chunks):
             self.cmd(f"echo {ch} >> /tmp/up.b64", echo=False)
             time.sleep(0.03)
-            self.job["detail"] = f"enviando {i + 1}/{len(chunks)}"
+            self.job["detail"] = f"enviando {remote_name} {i + 1}/{len(chunks)}"
         time.sleep(0.5)
-        self.cmd(f"base64 -d /tmp/up.b64 > {REMOTE_DIR}/main.c", echo=False)
+        self.cmd(f"base64 -d /tmp/up.b64 > {REMOTE_DIR}/{remote_name}", echo=False)
         time.sleep(0.5)
         self.scan_reset()
-        self.cmd(f"md5sum {REMOTE_DIR}/main.c", echo=False)
+        self.cmd(f"md5sum {REMOTE_DIR}/{remote_name}", echo=False)
         if not self.wait_for(md5, 10):
-            self.job.update(status="error", detail="md5 nao confere apos envio")
-            return
-        self._log("[interface] envio OK (md5 confere)")
+            self.job.update(status="error", detail=f"md5 nao confere apos envio de {remote_name}")
+            return False
+        self._log(f"[interface] {remote_name} OK (md5 confere)")
+        return True
+
+    def job_deploy(self, compile_after):
+        files = (
+            (LOCAL_MAIN, "main.c"),
+            (LOCAL_CONTROLLER_CONFIG, "controller_config.h"),
+            (LOCAL_CONTROLLER_CORE, "controller_core.h"),
+        )
+        for local_path, remote_name in files:
+            if not self._upload_file_b64(local_path, remote_name):
+                return
         self.overrides = {}
         if compile_after:
             if self._compile():
@@ -1090,13 +1253,14 @@ class RobotLink:
 
     def job_defines(self, changes):
         for name, val in changes.items():
+            remote_file = "main.c" if name in MAIN_DEFINES else "controller_config.h"
             sed = (f"sed -r -i \"s/^(#define[[:space:]]+{name}[[:space:]]+)"
-                   f"[0-9.eE+-]+/\\1{val}/\" {REMOTE_DIR}/main.c")
+                   f"[0-9.eE+-]+/\\1{val}/\" {REMOTE_DIR}/{remote_file}")
             self.cmd(sed, echo=False)
             time.sleep(0.15)
             self.overrides[name] = val
         names = "|".join(changes)
-        self.cmd(f"grep -E '^#define +({names})' {REMOTE_DIR}/main.c", echo=False)
+        self.cmd(f"grep -E '^#define +({names})' {REMOTE_DIR}/main.c {REMOTE_DIR}/controller_config.h", echo=False)
         time.sleep(0.8)
         self._compile()
 
@@ -1236,6 +1400,7 @@ def state():
         "job": job, "busy": bool(job and job["status"] == "running"),
         "telem": telem, "trail": trail, "goal": link.goal,
         "map": mapper.snapshot(),
+        "sim": sim_snapshot(SIM_SELECTED["worlds"], SIM_SELECTED["out_dir"]),
         "console": lines, "console_next": nxt,
         "wifi_ip": link.wifi_ip,
     })
@@ -1342,6 +1507,86 @@ def map_save():
 def map_clear():
     mapper.clear()
     return jsonify({"ok": True, "map": mapper.snapshot()})
+
+
+def _need_local_job_free():
+    if link.job and link.job.get("status") == "running":
+        return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
+    return None
+
+
+@app.get("/api/sim/state")
+def sim_state():
+    try:
+        worlds = _repo_path(request.args.get("worlds", ""), SIM_WORLD_DEFAULT)
+        out_dir = _repo_path(request.args.get("out_dir", ""), SIM_OUT_DIR)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return jsonify({"ok": True, **sim_snapshot(worlds, out_dir)})
+
+
+@app.post("/api/sim/generate")
+def sim_generate():
+    err = _need_local_job_free()
+    if err:
+        return err
+    j = request.json or {}
+    try:
+        count = int(j.get("count", 1000))
+        out_path = _repo_path(j.get("out", ""), SIM_WORLD_DEFAULT)
+    except (TypeError, ValueError) as e:
+        return jsonify({"ok": False, "error": f"parametro invalido: {e}"}), 400
+    if count < 1 or count > 1000:
+        return jsonify({"ok": False, "error": "quantidade precisa ficar entre 1 e 1000"}), 400
+    SIM_SELECTED["worlds"] = out_path
+    ok = link.start_job("sim-generate", link.job_sim_generate, count, out_path)
+    if not ok:
+        return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
+    return jsonify({"ok": True})
+
+
+@app.post("/api/sim/batch")
+def sim_batch():
+    err = _need_local_job_free()
+    if err:
+        return err
+    j = request.json or {}
+    try:
+        worlds = _repo_path(j.get("worlds", ""), SIM_WORLD_DEFAULT)
+        out_dir = _repo_path(j.get("out_dir", ""), SIM_OUT_DIR)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    SIM_SELECTED["worlds"] = worlds
+    SIM_SELECTED["out_dir"] = out_dir
+    ok = link.start_job("sim-batch", link.job_sim_batch, worlds, out_dir)
+    if not ok:
+        return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
+    return jsonify({"ok": True})
+
+
+@app.post("/api/sim/open")
+def sim_open():
+    j = request.json or {}
+    try:
+        worlds = _repo_path(j.get("worlds", ""), SIM_WORLD_DEFAULT)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    if not os.path.exists(worlds):
+        return jsonify({"ok": False, "error": f"JSON nao encontrado: {_repo_rel(worlds)}"}), 400
+    SIM_SELECTED["worlds"] = worlds
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if platform.system() == "Windows" else 0
+    subprocess.Popen(
+        [
+            "powershell",
+            "-ExecutionPolicy", "Bypass",
+            "-File", SIM_BUILD,
+            "-Interactive",
+            "-Worlds", worlds,
+        ],
+        cwd=ROOT,
+        creationflags=flags,
+    )
+    return jsonify({"ok": True})
 
 
 def _need_link():

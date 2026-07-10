@@ -982,6 +982,39 @@
 
         <section class="panel">
           <header>
+            <h2>Simulacao OpenGL</h2>
+            <span id="simBadge" class="badge">sem resumo</span>
+          </header>
+          <div class="body">
+            <div class="form-grid">
+              <label>Quantidade
+                <input id="simCountInput" type="number" min="1" max="1000" step="1" value="1000">
+              </label>
+              <label>Saida
+                <input id="simOutDirInput" type="text" value="tools/sim_khepera/out_gl">
+              </label>
+            </div>
+            <label style="margin-top:10px">Mundos JSON
+              <input id="simWorldsInput" type="text" value="tools/sim_khepera/worlds_1000.json">
+            </label>
+            <div class="actions">
+              <button id="simGenerateBtn" type="button">Gerar JSON</button>
+              <button id="simBatchBtn" class="primary" type="button">Validar lote</button>
+              <button id="simOpenBtn" type="button">Abrir janela</button>
+            </div>
+            <div class="map-stats" style="margin-top:12px">
+              <span>Mundos<strong id="simWorldCountValue">0</strong></span>
+              <span>Chegaram<strong id="simArrivedValue">0</strong></span>
+              <span>Falhas<strong id="simFailedValue">0</strong></span>
+              <span>Timeouts<strong id="simTimeoutValue">0</strong></span>
+            </div>
+            <div id="simFailureBox" class="console" style="height:116px;margin-top:10px"></div>
+            <p class="hint">A validacao local compila <code>khepera_gl.c</code>, carrega o JSON e usa o mesmo <code>controller_core.h</code> enviado ao robo.</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <header>
             <h2>Parametros</h2>
             <button id="reloadDefinesBtn" type="button">Recarregar</button>
           </header>
@@ -1435,6 +1468,59 @@
       setText("mapSamplesValue", String(map.telemetry_count || 0));
     }
 
+    function renderSim(sim = {}, job = null) {
+      const badge = el("simBadge");
+      const total = Number(sim.total || 0);
+      const failed = Number(sim.failed || 0);
+      const arrived = Number(sim.arrived || 0);
+      const worldCount = Number(sim.world_count || 0);
+      if (job && String(job.name || "").startsWith("sim-") && job.status === "running") {
+        cls(badge, "badge", "warn");
+        badge.textContent = job.detail || "rodando...";
+      } else if (total > 0 && failed === 0) {
+        cls(badge, "badge", "ok");
+        badge.textContent = `${arrived}/${total} OK`;
+      } else if (total > 0) {
+        cls(badge, "badge", "danger");
+        badge.textContent = `${failed} falha(s)`;
+      } else if (sim.world_exists) {
+        cls(badge, "badge", "");
+        badge.textContent = `${worldCount || "--"} mundos`;
+      } else {
+        cls(badge, "badge", "warn");
+        badge.textContent = "JSON ausente";
+      }
+
+      setText("simWorldCountValue", String(worldCount || total || 0));
+      setText("simArrivedValue", String(arrived));
+      setText("simFailedValue", String(failed));
+      setText("simTimeoutValue", String(sim.timeouts || 0));
+
+      const box = el("simFailureBox");
+      box.innerHTML = "";
+      const failures = sim.failures || [];
+      if (!sim.summary_exists) {
+        box.innerHTML = '<div>Sem summary.txt ainda.</div>';
+      } else if (!failures.length) {
+        box.innerHTML = '<div>Nenhuma falha registrada no ultimo lote.</div>';
+      } else {
+        for (const f of failures) {
+          const div = document.createElement("div");
+          div.textContent = `${f.scenario}: ${f.status} t=${f.time_s}s d=${f.final_goal_mm}mm walls=${f.wall_entries}`;
+          box.appendChild(div);
+        }
+      }
+    }
+
+    function simPayload() {
+      return {
+        count: Number(el("simCountInput").value || 1000),
+        out: el("simWorldsInput").value.trim(),
+        worlds: el("simWorldsInput").value.trim(),
+        out_dir: el("simOutDirInput").value.trim()
+      };
+    }
+
     function updateTelemetry(data) {
       const t = data.telem || {};
       setText("stateValue", t.state || (data.running ? "RUN" : "--"));
@@ -1489,6 +1575,9 @@
       el("compileBtn").disabled = !connected || busy || running;
       el("applyDefinesBtn").disabled = !connected || busy || running;
       el("wifiSetupBtn").disabled = !connected || busy || running;
+      el("simGenerateBtn").disabled = busy;
+      el("simBatchBtn").disabled = busy;
+      el("simOpenBtn").disabled = busy;
       el("sendCmdBtn").disabled = !connected;
       el("startManualBtn").disabled = !connected || !teleopReady || busy || (running && !manual);
       el("manualZeroBtn").disabled = !connected || !manual;
@@ -1688,6 +1777,7 @@
         updateBadges(data);
         updateTelemetry(data);
         updateMapStats(data.map || {});
+        renderSim(data.sim || {}, data.job);
         setButtons(data);
         drawMap(data);
       } catch (error) {
@@ -1905,6 +1995,36 @@
       }
     }
 
+    async function generateSimWorlds() {
+      const payload = simPayload();
+      try {
+        await api("/api/sim/generate", {method: "POST", body: JSON.stringify({count: payload.count, out: payload.out})});
+        showStatus(`Gerando ${payload.count} mundos JSON. Acompanhe o job acima.`, "ok");
+      } catch (error) {
+        showStatus(error.message, "error");
+      }
+    }
+
+    async function runSimBatch() {
+      const payload = simPayload();
+      try {
+        await api("/api/sim/batch", {method: "POST", body: JSON.stringify({worlds: payload.worlds, out_dir: payload.out_dir})});
+        showStatus("Validacao OpenGL iniciada. O resumo aparece no painel quando terminar.", "ok");
+      } catch (error) {
+        showStatus(error.message, "error");
+      }
+    }
+
+    async function openSimWindow() {
+      const payload = simPayload();
+      try {
+        await api("/api/sim/open", {method: "POST", body: JSON.stringify({worlds: payload.worlds})});
+        showStatus("Janela OpenGL aberta pelo Windows.", "ok");
+      } catch (error) {
+        showStatus(error.message, "error");
+      }
+    }
+
     async function startJob(endpoint, message) {
       try {
         await api(endpoint, {method: "POST"});
@@ -1942,6 +2062,9 @@
       el("mapStopBtn").addEventListener("click", stopMap);
       el("mapSaveBtn").addEventListener("click", saveMap);
       el("mapClearBtn").addEventListener("click", clearMap);
+      el("simGenerateBtn").addEventListener("click", generateSimWorlds);
+      el("simBatchBtn").addEventListener("click", runSimBatch);
+      el("simOpenBtn").addEventListener("click", openSimWindow);
       el("detectWifiBtn").addEventListener("click", detectWifiSetup);
       el("wifiSetupBtn").addEventListener("click", submitWifiSetup);
       el("manualZeroBtn").addEventListener("click", () => {
@@ -2011,6 +2134,7 @@
       restoreConnectionPrefs();
       setConnectionMode(state.connectionMode);
       updateDriveLabels();
+      renderSim({});
       drawMap({goal: {x: 700, y: 0}, trail: []});
       bindEvents();
       if (window.location.protocol === "file:") {

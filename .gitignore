@@ -1,5 +1,10 @@
 # Ferramenta baixada (Tectonic, ~48 MB) — nao versionar
-tools/
+.tools/
+tools/*
+!tools/sim_khepera/
+!tools/sim_khepera/**
+tools/sim_khepera/out*/
+tools/sim_khepera/*.exe
 
 # Webots: artefatos de build
 controllers/**/build/

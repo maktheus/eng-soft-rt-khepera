@@ -53,48 +53,13 @@
 /* ---------- alvo / chegada ---------- */
 #define GOAL_X_DEF    700.0    /* B padrao (mm a frente de A)                */
 #define GOAL_Y_DEF    0.0
-#define ARRIVE_MM     90.0     /* raio de chegada em B                       */
-
-/* ---------- rumo (go-to-goal) ---------- */
-#define KP_HEAD       1.2      /* ganho de rumo (erro rad -> diff)           */
-#define HEAD_SLOW     1.2      /* rad de erro p/ (quase) girar parado        */
-
-/* ---------- rastreamento da linha: ponto de controle virtual P ----------
- * Em vez de so MIRAR em B (proporcional de rumo), o robo SEGUE a linha A->B
- * usando o erro lateral d_line. Depois de contornar um obstaculo ele VOLTA
- * pro eixo em vez de cortar diagonal ate B. E a malha externa (cinematica)
- * do controle em cascata, adaptada ao driver diferencial normalizado.       */
-#define USE_POINT_P   1        /* 1 = ponto-P (segue a linha); 0 = so mira em B */
-#define LOOKAHEAD_MM  120.0    /* "d": distancia do ponto P; suaviza a correcao */
-#define K_CT          1.0      /* ganho proporcional do erro lateral (d_line)   */
-#define KI_CT         0.0015   /* ganho integral do erro lateral (mata vies)    */
-#define CT_INT_MAX    250.0    /* limite anti-windup do integrador (governador) */
-
-/* ---------- IR (em "excesso" = leitura - IR_BASE) ---------- */
-#define IR_BASE       120
-#define FRONT_SPAN    450.0
-#define FRONT_BLOCK   200      /* frente travada -> entra em SEGUE-PAREDE    */
-#define FRONT_CRIT    320      /* quina interna  -> pivota p/ longe          */
-#define FRONT_CLEAR   90       /* frente livre p/ poder largar a parede      */
-
-/* ---------- seguimento de parede ---------- */
-#define WALL_TARGET   150      /* distancia-alvo do lado seguido (excesso)   */
-#define WALL_LOST     45
-#define KP_WALL       0.0045
-#define STEER_HARD    0.75
-
-/* ---------- leave condition (Bug2) ---------- */
-#define LINE_EPS      60.0     /* mm: "esta sobre a linha A->B"              */
-#define PROGRESS_MM   40.0     /* mm: precisa estar mais perto de B que no hit*/
 
 /* ---------- geral ---------- */
 #define SPEED         12000
-#define TURN_SPEED    0.5
-#define DIFF_MAX      0.90
-#define ALPHA         0.4
 #define WAIT_US       40000
-#define CLIFF_THR     500      /* IR de chao abaixo disso = beirada (piso ~960)*/
 #define BATT_LOW_MV   6300
+
+#include "controller_config.h"
 
 static volatile sig_atomic_t running = 1;
 static void on_sigint(int s){ (void)s; running = 0; }
@@ -103,6 +68,8 @@ static int    excess(int v){ int e=v-IR_BASE; return e>0?e:0; }
 static double now_s(void){ struct timeval t; gettimeofday(&t,NULL); return t.tv_sec + t.tv_usec/1e6; }
 static double wrap(double a){ while(a>M_PI)a-=2*M_PI; while(a<-M_PI)a+=2*M_PI; return a; }
 #define IRP(i) (khepera4.infrared_proximity.sensor[i])
+
+#include "controller_core.h"
 
 static void leds(int r,int g,int b){
     khepera_dspic_write_register8(I2C_RGB_FL_R,r); khepera_dspic_write_register8(I2C_RGB_FL_G,g); khepera_dspic_write_register8(I2C_RGB_FL_B,b);
@@ -266,15 +233,11 @@ int main(int argc, char *argv[]){
     int enc_l0 = khepera4.motor_left.current_position;
     int enc_r0 = khepera4.motor_right.current_position;
 
-    /* segmento A->B corrente (muda no modo --loop) */
-    double ax=0, ay=0, bx=gx, by=gy;
+    KhepController ctrl;
     double x=0, y=0, th=0;               /* pose por odometria (mm, mm, rad) */
 
-    enum { GOAL, WALLF, BEIRADA } estado = GOAL; int led_state=-1;
-    double fwd_s=0, diff_s=0, cliff_start=0;
-    int wall_left=0;                     /* 1 = obstaculo mantido a ESQUERDA */
-    double hit_dgoal=0; int left_line=0; /* estado do Bug2 durante WALLF     */
-    double ct_int=0;                     /* integrador do erro lateral (ponto-P) */
+    khep_ctrl_init(&ctrl, gx, gy);
+    int led_state=-1;
     int    have_goal = !mission;          /* modo missao comeca sem alvo (aguarda goto) */
     long tick=0; int batt_tick=0;
     double t_prev = now_s();
@@ -283,7 +246,7 @@ int main(int argc, char *argv[]){
     if(mission)
         printf("MISSAO: aguardando 'goto X Y' pela serial (stop/quit). Ctrl-C p/ parar.\n");
     else
-        printf("A->B (Bug2, odometria). B=(%.0f,%.0f)mm loop=%d trim=%.3f. Ctrl-C p/ parar.\n", bx,by,loop,trim);
+        printf("A->B (Bug2, odometria). B=(%.0f,%.0f)mm loop=%d trim=%.3f. Ctrl-C p/ parar.\n", ctrl.bx,ctrl.by,loop,trim);
 
     while(running){
         double t_now=now_s(); double dt=t_now-t_prev; t_prev=t_now;
@@ -309,9 +272,9 @@ int main(int argc, char *argv[]){
         if(mission){
             double ngx,ngy; int mc=mission_read(&ngx,&ngy);
             if(mc==1){                                   /* goto X Y: novo leg A(atual)->B */
-                ax=x; ay=y; bx=ngx; by=ngy;
-                estado=GOAL; fwd_s=0; diff_s=0; ct_int=0; have_goal=1;
-                printf(">> GOTO (%.0f,%.0f)\n", bx,by); fflush(stdout);
+                khep_ctrl_set_segment(&ctrl, x, y, ngx, ngy);
+                have_goal=1;
+                printf(">> GOTO (%.0f,%.0f)\n", ctrl.bx,ctrl.by); fflush(stdout);
             } else if(mc==2){                            /* stop: aguarda proximo goto */
                 have_goal=0; printf(">> STOP\n"); fflush(stdout);
             } else if(mc==3){                            /* quit: encerra a missao */
@@ -323,119 +286,60 @@ int main(int argc, char *argv[]){
             }
         }
 
-        int F=excess(IRP(3)),FL=excess(IRP(2)),FR=excess(IRP(4)),L=excess(IRP(1)),R=excess(IRP(5));
-        int Lc = FL>L?FL:L, Rc = FR>R?FR:R;              /* clusters lateral-frontais */
-        int fb = F; if(FL>fb)fb=FL; if(FR>fb)fb=FR;      /* pior sensor frontal */
+        int rawF=IRP(3), rawFL=IRP(2), rawFR=IRP(4), rawL=IRP(1), rawR=IRP(5);
         int gmin=IRP(8); if(IRP(9)<gmin)gmin=IRP(9); if(IRP(10)<gmin)gmin=IRP(10); if(IRP(11)<gmin)gmin=IRP(11);
+        KhepOutput co = khep_ctrl_step(&ctrl, x, y, th, dc, dt, t_now,
+                                       rawF, rawFL, rawFR, rawL, rawR, gmin);
 
-        /* ---------- geometria do alvo (segmento A->B) ---------- */
-        double vx=bx-ax, vy=by-ay, vlen=hypot(vx,vy); if(vlen<1e-6)vlen=1e-6;
-        double ux=vx/vlen, uy=vy/vlen;                   /* direcao unitaria A->B */
-        double px=x-ax, py=y-ay;
-        double d_line = ux*py - uy*px;                   /* dist. SINALIZADA a linha */
-        double d_goal = hypot(bx-x, by-y);
-        double bearing= atan2(by-y, bx-x);
-        double herr   = wrap(bearing-th);
+        if(co.entered_wall){
+            printf(">> WALLF: parede a %s (hit d_goal=%.0f, herr=%.0fdeg)\n",
+                   co.wall_left?"ESQUERDA":"DIREITA", co.d_goal, co.herr*180/M_PI); fflush(stdout);
+        }
+        if(co.left_wall){
+            if(co.leave_by_goal)
+                printf("<< alvo livre e progresso feito (d_goal=%.0f) -> GOAL\n", co.d_goal);
+            else
+                printf("<< recruzou a linha mais perto de B (d_goal=%.0f) -> GOAL\n", co.d_goal);
+            fflush(stdout);
+        }
 
         /* ---------- CHEGOU? ---------- */
-        if(d_goal < ARRIVE_MM){
+        if(co.d_goal < ARRIVE_MM){
             khepera4_drive_set_speed_differential(SPEED,0,0);
-            printf("== CHEGOU em (%.0f,%.0f)  pose=(%.0f,%.0f,%.0fdeg) ==\n", bx,by,x,y,th*180/M_PI); fflush(stdout);
+            printf("== CHEGOU em (%.0f,%.0f)  pose=(%.0f,%.0f,%.0fdeg) ==\n", ctrl.bx,ctrl.by,x,y,th*180/M_PI); fflush(stdout);
             if(mission){        /* chegou no waypoint: aguarda o proximo goto */
-                have_goal=0; estado=GOAL; fwd_s=0; diff_s=0; ct_int=0;
+                have_goal=0; khep_ctrl_set_segment(&ctrl, x, y, x, y);
                 leds(0,40,0); usleep(200000); continue;
             }
             if(!loop) break;
-            double nax=bx,nay=by; bx=ax; by=ay; ax=nax; ay=nay;   /* inverte o segmento */
-            estado=GOAL; fwd_s=0; diff_s=0; ct_int=0; leds(0,40,0); usleep(600000); continue;
+            {   /* inverte o segmento */
+                double old_ax=ctrl.ax, old_ay=ctrl.ay;
+                khep_ctrl_set_segment(&ctrl, ctrl.bx, ctrl.by, old_ax, old_ay);
+            }
+            leds(0,40,0); usleep(600000); continue;
         }
 
         /* ---------- ANTI-QUEDA (prioridade maxima) ---------- */
-        if(estado!=BEIRADA && gmin<CLIFF_THR){ estado=BEIRADA; cliff_start=t_now; }
-        if(estado==BEIRADA){
+        if(co.beirada){
             if(led_state!=3){ leds(40,0,0); led_state=3; }
-            double e=t_now-cliff_start;
-            if(e<0.5)      khepera4_drive_set_speed_differential(SPEED,-0.6,0.0);
-            else if(e<1.3) khepera4_drive_set_speed_differential(SPEED, 0.0,TURN_SPEED);
-            else { estado=GOAL; fwd_s=0; diff_s=0; ct_int=0; }
+            khepera4_drive_set_speed_differential(SPEED, co.fwd_s, co.diff_s);
             if(++tick%8==0){ printf("[BEIRADA] chao=%d\n",gmin); fflush(stdout); }
             usleep(WAIT_US); continue;
         }
 
-        double forward, diff;
-
-        if(estado==GOAL){
-            /* ---- SEGUE A LINHA A->B ---- */
+        if(co.state==KHEP_GOAL){
             if(led_state!=0){ leds(0,30,0); led_state=0; }              /* verde: rumo a B */
-            double herr_ctrl;
-#if USE_POINT_P
-            /* Ponto de controle virtual P: o rumo desejado une o AVANCO na
-             * direcao da linha com uma CORRECAO proporcional (e integral) ao
-             * erro lateral d_line. d_line>0 => robo a ESQUERDA da linha =>
-             * corrige virando pro lado da linha. Longe da linha, o rumo tende
-             * a perpendicular; sobre ela, tende a paralelo (avanca reto).     */
-            double theta_line = atan2(uy, ux);
-            double ct_cmd     = K_CT*d_line + KI_CT*ct_int;
-            double cross_corr = atan2(ct_cmd, LOOKAHEAD_MM);
-            double head_ref   = wrap(theta_line - cross_corr);
-            herr_ctrl = wrap(head_ref - th);
-#else
-            herr_ctrl = herr;                                          /* proporcional: mira em B */
-#endif
-            diff = clampd(-KP_HEAD*herr_ctrl, -DIFF_MAX, DIFF_MAX);    /* herr>0 (alvo a esq) -> diff<0 (esq) */
-            forward = clampd(1.0 - fabs(herr_ctrl)/HEAD_SLOW, 0.12, 1.0); /* erro grande -> quase gira parado */
-            double fr = clampd(1.0 - fb/FRONT_SPAN, 0.25, 1.0);
-            if(fr<forward) forward=fr;
-
-#if USE_POINT_P
-            /* integra d_line so quando a direcao NAO saturou (governador
-             * anti-windup -- congela o integrador na saturacao). */
-            if(fabs(diff) < DIFF_MAX)
-                ct_int = clampd(ct_int + d_line*dt, -CT_INT_MAX, CT_INT_MAX);
-#endif
-
-            /* obstaculo na frente -> entra em SEGUE-PAREDE (Bug2) */
-            if(fb>FRONT_BLOCK){
-                estado=WALLF; hit_dgoal=d_goal; left_line=0; ct_int=0;
-                /* contorna pelo lado que aponta pra B: B a esquerda -> passa pela
-                   esquerda -> mantem o obstaculo a DIREITA (wall_left=0). */
-                wall_left = (herr < 0.0);
-                printf(">> WALLF: parede a %s (hit d_goal=%.0f, herr=%.0fdeg)\n",
-                       wall_left?"ESQUERDA":"DIREITA", hit_dgoal, herr*180/M_PI); fflush(stdout);
-            }
-        }
-        else { /* WALLF -- segue a parede contornando o obstaculo */
+        } else {
             if(led_state!=2){ leds(0,0,40); led_state=2; }             /* azul: contornando */
-            int side = wall_left ? Lc : Rc;
-            int err  = WALL_TARGET - side;
-
-            if(F>FRONT_CRIT){                                          /* quina interna */
-                forward = 0.06;
-                diff    = wall_left ? +STEER_HARD : -STEER_HARD;       /* gira p/ longe da parede */
-            } else {
-                forward = clampd(1.0 - F/FRONT_SPAN, 0.30, 0.85);
-                double d = KP_WALL*(double)err;                        /* err>0 (longe) -> vira P/ a parede */
-                diff = wall_left ? -d : +d;
-            }
-
-            /* LEAVE CONDITION: saiu da linha e voltou a ela mais perto de B */
-            if(fabs(d_line) > 1.5*LINE_EPS) left_line=1;
-            if(left_line && fabs(d_line) < LINE_EPS &&
-               d_goal < hit_dgoal - PROGRESS_MM && fb < FRONT_BLOCK){
-                estado=GOAL; fwd_s=0;
-                printf("<< recruzou a linha mais perto de B (d_goal=%.0f) -> GOAL\n", d_goal); fflush(stdout);
-            }
         }
 
-        diff = clampd(diff,-DIFF_MAX,DIFF_MAX);
-        fwd_s=(1-ALPHA)*fwd_s+ALPHA*forward; diff_s=(1-ALPHA)*diff_s+ALPHA*diff;
-        khepera4_drive_set_speed_differential(SPEED, fwd_s*vscale, diff_s + trim);
+        khepera4_drive_set_speed_differential(SPEED, co.fwd_s*vscale, co.diff_s + trim);
 
         if(++tick%15==0){
             printf("[%s%s] pose=(%.0f,%.0f,%.0fd) d_goal=%.0f d_line=%+.0f herr=%+.0fd | F/FL/FR=%d/%d/%d | chao=%d bat=%umV\n",
-                   estado==GOAL?"GOAL ":"WALLF", estado==WALLF?(wall_left?"-E":"-D"):"",
-                   x,y,th*180/M_PI, d_goal, d_line, herr*180/M_PI,
-                   F+IR_BASE,FL+IR_BASE,FR+IR_BASE, gmin, khepera4.battery.voltage);
+                   co.state==KHEP_GOAL?"GOAL ":"WALLF", co.state==KHEP_WALLF?(co.wall_left?"-E":"-D"):"",
+                   x,y,th*180/M_PI, co.d_goal, co.d_line, co.herr*180/M_PI,
+                   co.F+IR_BASE,co.FL+IR_BASE,co.FR+IR_BASE, gmin, khepera4.battery.voltage);
             if(khepera4.battery.voltage>0 && khepera4.battery.voltage<BATT_LOW_MV) printf("  !! BATERIA BAIXA !!\n");
             fflush(stdout);
         }
