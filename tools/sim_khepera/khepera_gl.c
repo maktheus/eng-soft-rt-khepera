@@ -10,7 +10,8 @@
  *
  * Uso:
  *   khepera_gl.exe [mundos.json]                 janela interativa
- *   khepera_gl.exe --batch outdir [mundos.json]  gera summary.txt e imagens de falhas
+ *   khepera_gl.exe --batch outdir [mundos.json] [--save-all]
+ *                                                gera summary.txt e imagens
  *
  * Teclas na janela:
  *   N/P    proximo/anterior
@@ -97,6 +98,7 @@ static int g_current = 0;
 static Sim g_sim;
 static int g_paused = 0;
 static int g_steps_per_tick = 1;
+static int g_batch_save_all = 0;
 static HWND g_hwnd = NULL;
 static HDC g_hdc = NULL;
 static HGLRC g_glrc = NULL;
@@ -1016,7 +1018,7 @@ static int run_batch(const char *out_dir) {
         Scenario *sc = &g_scenarios[i];
         reset_sim(i);
         run_until_done(sc);
-        if (!g_sim.arrived || i == 0 || i == g_scenario_count - 1) {
+        if (g_batch_save_all || !g_sim.arrived || i == 0 || i == g_scenario_count - 1) {
             char file_name[96];
             draw_scene(sc, &g_sim, BATCH_W, BATCH_H);
             glFinish();
@@ -1061,6 +1063,9 @@ int main(int argc, char **argv) {
         if (argc >= 4) {
             worlds_path = argv[3];
             explicit_worlds = 1;
+        }
+        if (argc >= 5 && strcmp(argv[4], "--save-all") == 0) {
+            g_batch_save_all = 1;
         }
         if (!load_scenarios_json(worlds_path) && explicit_worlds) return 1;
         reset_sim(0);

@@ -1,7 +1,8 @@
 param(
     [string]$OutDir = "tools/sim_khepera/out_gl",
     [string]$Worlds = "tools/sim_khepera/worlds_1000.json",
-    [switch]$Interactive
+    [switch]$Interactive,
+    [switch]$SaveAll
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,7 +36,9 @@ try {
     if ($Interactive) {
         Start-Process -FilePath $exe -ArgumentList @($Worlds) -WorkingDirectory $root
     } else {
-        & $exe --batch $OutDir $Worlds
+        $args = @("--batch", $OutDir, $Worlds)
+        if ($SaveAll) { $args += "--save-all" }
+        & $exe @args
     }
 } finally {
     Pop-Location

@@ -52,6 +52,12 @@ Modo batch, gera imagens e metricas:
 .\tools\sim_khepera\build.ps1
 ```
 
+Modo batch salvando uma imagem para cada caso:
+
+```powershell
+.\tools\sim_khepera\build.ps1 -OutDir tools\sim_khepera\casos_1000_imagens -SaveAll
+```
+
 Modo interativo, abre a janela OpenGL:
 
 ```powershell

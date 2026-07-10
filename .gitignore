@@ -4,6 +4,7 @@ tools/*
 !tools/sim_khepera/
 !tools/sim_khepera/**
 tools/sim_khepera/out*/
+tools/sim_khepera/casos_*/
 tools/sim_khepera/*.exe
 
 # Webots: artefatos de build
