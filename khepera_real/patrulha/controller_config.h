@@ -33,7 +33,7 @@
 #define WALL_TARGET   150      /* distancia-alvo do lado seguido (excesso)   */
 #define WALL_LOST     45       /* abaixo disso considera quina externa       */
 #define WALL_MIN_MM   180.0    /* minimo de contorno antes de relargar linha */
-#define WALL_NO_PROGRESS_MM 1400.0 /* inverte contorno se ficar orbitando     */
+#define WALL_NO_PROGRESS_MM 700.0  /* inverte contorno se ficar orbitando     */
 #define KP_WALL       0.0045
 #define STEER_HARD    0.75
 

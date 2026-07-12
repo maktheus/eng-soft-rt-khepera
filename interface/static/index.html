@@ -990,6 +990,9 @@
               <label>Quantidade
                 <input id="simCountInput" type="number" min="1" max="1000" step="1" value="1000">
               </label>
+              <label>Seed
+                <input id="simSeedInput" type="number" step="1" value="20260712">
+              </label>
               <label>Saida
                 <input id="simOutDirInput" type="text" value="tools/sim_khepera/out_gl">
               </label>
@@ -1007,6 +1010,7 @@
               <span>Chegaram<strong id="simArrivedValue">0</strong></span>
               <span>Falhas<strong id="simFailedValue">0</strong></span>
               <span>Timeouts<strong id="simTimeoutValue">0</strong></span>
+              <span>Seed<strong id="simSeedValue">--</strong></span>
             </div>
             <div id="simFailureBox" class="console" style="height:116px;margin-top:10px"></div>
             <p class="hint">A validacao local compila <code>khepera_gl.c</code>, carrega o JSON e usa o mesmo <code>controller_core.h</code> enviado ao robo.</p>
@@ -1495,6 +1499,7 @@
       setText("simArrivedValue", String(arrived));
       setText("simFailedValue", String(failed));
       setText("simTimeoutValue", String(sim.timeouts || 0));
+      setText("simSeedValue", sim.world_seed === null || sim.world_seed === undefined ? "--" : String(sim.world_seed));
 
       const box = el("simFailureBox");
       box.innerHTML = "";
@@ -1515,6 +1520,7 @@
     function simPayload() {
       return {
         count: Number(el("simCountInput").value || 1000),
+        seed: Number(el("simSeedInput").value || 20260712),
         out: el("simWorldsInput").value.trim(),
         worlds: el("simWorldsInput").value.trim(),
         out_dir: el("simOutDirInput").value.trim()
@@ -1998,8 +2004,8 @@
     async function generateSimWorlds() {
       const payload = simPayload();
       try {
-        await api("/api/sim/generate", {method: "POST", body: JSON.stringify({count: payload.count, out: payload.out})});
-        showStatus(`Gerando ${payload.count} mundos JSON. Acompanhe o job acima.`, "ok");
+        await api("/api/sim/generate", {method: "POST", body: JSON.stringify({count: payload.count, seed: payload.seed, out: payload.out})});
+        showStatus(`Gerando ${payload.count} mundos JSON com seed ${payload.seed}. Acompanhe o job acima.`, "ok");
       } catch (error) {
         showStatus(error.message, "error");
       }

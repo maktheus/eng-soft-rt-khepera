@@ -130,6 +130,15 @@ def _sim_world_count(worlds_path):
         return 0
 
 
+def _sim_world_seed(worlds_path):
+    try:
+        with open(worlds_path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("metadata", {}).get("seed")
+    except Exception:
+        return None
+
+
 def sim_snapshot(worlds_path=None, out_dir=None):
     worlds_path = worlds_path or SIM_WORLD_DEFAULT
     out_dir = out_dir or SIM_OUT_DIR
@@ -138,6 +147,7 @@ def sim_snapshot(worlds_path=None, out_dir=None):
         "worlds": _repo_rel(worlds_path),
         "world_exists": os.path.exists(worlds_path),
         "world_count": _sim_world_count(worlds_path) if os.path.exists(worlds_path) else 0,
+        "world_seed": _sim_world_seed(worlds_path) if os.path.exists(worlds_path) else None,
         "out_dir": _repo_rel(out_dir),
         "summary_exists": os.path.exists(summary_path),
         "total": 0,
@@ -949,14 +959,14 @@ class RobotLink:
         if code != 0:
             raise RuntimeError(f"processo local falhou ({code}): {last_line or pretty}")
 
-    def job_sim_generate(self, count, out_path):
-        self.job["detail"] = f"gerando {count} mundos..."
+    def job_sim_generate(self, count, seed, out_path):
+        self.job["detail"] = f"gerando {count} mundos com seed {seed}..."
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         self._run_local_process(
-            ["python", SIM_GENERATOR, "--count", str(count), "--out", out_path],
+            ["python", SIM_GENERATOR, "--count", str(count), "--seed", str(seed), "--out", out_path],
             detail_prefix="sim-gen",
         )
-        self.job.update(status="ok", detail=f"JSON gerado: {_repo_rel(out_path)} ({count} mundos)")
+        self.job.update(status="ok", detail=f"JSON gerado: {_repo_rel(out_path)} ({count} mundos, seed {seed})")
 
     def job_sim_batch(self, worlds_path, out_dir):
         if not os.path.exists(worlds_path):
@@ -1533,13 +1543,14 @@ def sim_generate():
     j = request.json or {}
     try:
         count = int(j.get("count", 1000))
+        seed = int(j.get("seed", 20260712))
         out_path = _repo_path(j.get("out", ""), SIM_WORLD_DEFAULT)
     except (TypeError, ValueError) as e:
         return jsonify({"ok": False, "error": f"parametro invalido: {e}"}), 400
     if count < 1 or count > 1000:
         return jsonify({"ok": False, "error": "quantidade precisa ficar entre 1 e 1000"}), 400
     SIM_SELECTED["worlds"] = out_path
-    ok = link.start_job("sim-generate", link.job_sim_generate, count, out_path)
+    ok = link.start_job("sim-generate", link.job_sim_generate, count, seed, out_path)
     if not ok:
         return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
     return jsonify({"ok": True})

@@ -30,6 +30,9 @@
 #ifndef LOOKAHEAD_MM
 #define LOOKAHEAD_MM 120.0
 #endif
+#ifndef USE_POINT_P
+#define USE_POINT_P 1
+#endif
 #ifndef K_CT
 #define K_CT 1.0
 #endif
@@ -56,6 +59,15 @@
 #endif
 #ifndef K_AVOID
 #define K_AVOID 0.0028
+#endif
+#ifndef K_SIDE_AVOID
+#define K_SIDE_AVOID 0.0065
+#endif
+#ifndef FRONT_TURN_BIAS
+#define FRONT_TURN_BIAS 0.42
+#endif
+#ifndef SIDE_CRIT
+#define SIDE_CRIT 260
 #endif
 #ifndef WALL_TARGET
 #define WALL_TARGET 150
@@ -237,24 +249,48 @@ static KhepOutput khep_ctrl_step(KhepController *c,
         double ct_cmd = K_CT * out.d_line + KI_CT * c->ct_int;
         double cross_corr = atan2(ct_cmd, LOOKAHEAD_MM);
         double head_ref = khep_wrap(theta_line - cross_corr);
-        double herr_ctrl = khep_wrap(head_ref - th);
+        double herr_ctrl = USE_POINT_P ? khep_wrap(head_ref - th) : out.herr;
+        double left_pressure = (double)out.FL + 0.75 * (double)out.L;
+        double right_pressure = (double)out.FR + 0.75 * (double)out.R;
+        double side_guard = 0.0;
         if (out.d_goal < 650.0) {
             herr_ctrl = out.herr;
         }
         double fr_scale;
 
-        diff = -KP_HEAD * herr_ctrl + K_AVOID * (double)(out.Lc - out.Rc);
+        if (out.F > FRONT_CLEAR || out.Lc > SIDE_CRIT || out.Rc > SIDE_CRIT) {
+            side_guard += K_AVOID * (double)(out.Lc - out.Rc);
+        }
+        if (out.Lc > SIDE_CRIT || out.Rc > SIDE_CRIT) {
+            side_guard += K_SIDE_AVOID * (left_pressure - right_pressure);
+        }
+        if (out.F > FRONT_CLEAR) {
+            if (right_pressure > left_pressure + 25.0) {
+                side_guard -= FRONT_TURN_BIAS;
+            } else if (left_pressure > right_pressure + 25.0) {
+                side_guard += FRONT_TURN_BIAS;
+            } else {
+                side_guard += (out.herr >= 0.0) ? -FRONT_TURN_BIAS : FRONT_TURN_BIAS;
+            }
+        }
+
+        diff = -KP_HEAD * herr_ctrl + side_guard;
         diff = khep_clampd(diff, -DIFF_MAX, DIFF_MAX);
         forward = khep_clampd(1.0 - fabs(herr_ctrl) / HEAD_SLOW, 0.12, 1.0);
         fr_scale = khep_clampd(1.0 - out.fb / FRONT_SPAN, 0.25, 1.0);
         if (fr_scale < forward) forward = fr_scale;
+        if (out.Lc > SIDE_CRIT || out.Rc > SIDE_CRIT) {
+            double side_scale = khep_clampd(1.0 - ((double)(out.Lc > out.Rc ? out.Lc : out.Rc)) / FRONT_SPAN,
+                                           0.10, 0.70);
+            if (side_scale < forward) forward = side_scale;
+        }
 
         if (fabs(diff) < DIFF_MAX) {
             c->ct_int = khep_clampd(c->ct_int + out.d_line * dt,
                                     -CT_INT_MAX, CT_INT_MAX);
         }
 
-        if (out.fb > FRONT_BLOCK &&
+        if ((out.F > FRONT_BLOCK || (out.FL > FRONT_CRIT && out.FR > FRONT_CRIT)) &&
             (out.d_goal > 3.0 * ARRIVE_MM || out.fb > FRONT_CRIT)) {
             c->state = KHEP_WALLF;
             c->hit_dgoal = out.d_goal;
@@ -270,7 +306,7 @@ static KhepOutput khep_ctrl_step(KhepController *c,
             out.entered_wall = 1;
         }
     } else {
-        int side, err;
+        int side, other, err;
         double goal_diff;
         c->wallf_dist += fabs(dc);
         if (out.d_goal < c->best_wall_dgoal - 25.0) {
@@ -289,9 +325,28 @@ static KhepOutput khep_ctrl_step(KhepController *c,
         }
 
         side = c->wall_left ? out.Lc : out.Rc;
+        other = c->wall_left ? out.Rc : out.Lc;
         err = WALL_TARGET - side;
 
-        if (side > FRONT_CRIT) {
+        if (c->wallf_dist > WALL_MIN_MM &&
+            out.F < FRONT_CLEAR && out.FL < FRONT_BLOCK && out.FR < FRONT_BLOCK &&
+            (fabs(out.herr) < 1.75 || c->no_progress_dist > 0.45 * WALL_NO_PROGRESS_MM) &&
+            out.d_goal < c->hit_dgoal + 320.0) {
+            c->state = KHEP_GOAL;
+            c->fwd_s = 0.0;
+            c->diff_s = 0.0;
+            c->ct_int = 0.0;
+            out.left_wall = 1;
+            out.leave_by_goal = 1;
+        }
+
+        if (out.F > FRONT_CRIT && out.Lc > SIDE_CRIT && out.Rc > SIDE_CRIT) {
+            forward = -0.10;
+            diff = (out.Lc > out.Rc) ? +STEER_HARD : -STEER_HARD;
+        } else if (other > SIDE_CRIT) {
+            forward = 0.08;
+            diff = c->wall_left ? -STEER_HARD : +STEER_HARD;
+        } else if (side > FRONT_CRIT) {
             forward = 0.12;
             diff = c->wall_left ? +STEER_HARD : -STEER_HARD;
         } else if (side < WALL_LOST && out.F < FRONT_CLEAR) {

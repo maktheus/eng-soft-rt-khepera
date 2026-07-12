@@ -38,10 +38,15 @@ tem 1000 cenarios progressivos, todos em milimetros:
 }
 ```
 
-Para recriar a bateria:
+Para recriar a bateria randomizada. A quantidade de caixas por cenario segue a
+mesma progressao de dificuldade; a seed sorteia posicoes, dimensoes e destinos.
+O gerador tambem coloca caixas randomizadas no corredor frontal entre o robo e o
+destino, para evitar casos com a linha A->B vazia. Essa bateria e de estresse:
+alguns mundos podem gerar colisao ou timeout e ainda assim continuam validos
+para testar os limites do controlador:
 
 ```powershell
-python tools\sim_khepera\generate_worlds.py --count 1000 --out tools\sim_khepera\worlds_1000.json
+python tools\sim_khepera\generate_worlds.py --count 1000 --seed 20260712 --out tools\sim_khepera\worlds_1000.json
 ```
 
 ## Rodar no Windows
@@ -99,6 +104,7 @@ python app.py
 Em `http://localhost:8340`, use o painel `Simulacao OpenGL` para:
 
 - gerar o JSON com ate 1000 mundos;
+- escolher a seed da randomizacao;
 - validar o lote inteiro em batch;
 - abrir a janela OpenGL interativa;
 - ver o total de mundos, chegadas, falhas e timeouts do ultimo `summary.txt`.
