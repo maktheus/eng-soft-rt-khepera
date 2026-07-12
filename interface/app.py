@@ -1190,9 +1190,14 @@ class RobotLink:
         else:
             self.job.update(status="ok", detail="enviado")
 
-    def job_navigate(self, gx, gy, waypoints):
+    def job_navigate(self, gx, gy, waypoints, label="missao"):
         """Executa a missao: sobe o patrulha em modo --mission e envia os
         waypoints do planejador A* (mapa) um a um, com odometria continua."""
+        with self.clock:
+            self.trail = []
+            self.arrived = False
+            self.telem = {}
+        self.goal = {"x": gx, "y": gy}
         self.running = True
         self.manual = False
         self.scan_reset()
@@ -1205,17 +1210,23 @@ class RobotLink:
         for k, (wx, wy) in enumerate(waypoints):
             if not self.running:
                 break
-            self.job["detail"] = f"waypoint {k+1}/{n} -> ({wx:.0f},{wy:.0f})"
+            with self.clock:
+                self.arrived = False
+            self.goal = {"x": wx, "y": wy}
+            self.job["detail"] = f"{label}: waypoint {k+1}/{n} -> ({wx:.0f},{wy:.0f})"
             self.scan_reset()
             self.cmd(f"goto {wx:.0f} {wy:.0f}", echo=False)
             if not self.wait_for(r"CHEGOU", 180):
                 self.cmd("quit", echo=False)
-                self.job.update(status="error", detail=f"timeout no waypoint {k+1}/{n}")
+                self.job.update(status="error", detail=f"timeout no waypoint {k+1}/{n} ({label})")
                 self.running = False
                 return
         self.cmd("quit", echo=False)
         self.running = False
-        self.job.update(status="ok", detail=f"missao concluida ({n} waypoints)")
+        with self.clock:
+            self.arrived = True
+        self.goal = {"x": gx, "y": gy}
+        self.job.update(status="ok", detail=f"{label} concluida ({n} waypoints)")
 
     def job_map_explore(self, gx, gy):
         """Geracao automatica de mapa: liga o mapeamento, roda A->B em modo
@@ -1470,6 +1481,33 @@ def map_navigate():
     if not ok:
         return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
     return jsonify({"ok": True, "map": sess, "waypoints": wps})
+
+
+@app.post("/api/map/roundtrip")
+def map_roundtrip():
+    """Planeja e executa A->B->A sobre o mapa salvo."""
+    err = _need_free_for_job()
+    if err:
+        return err
+    j = request.json or {}
+    try:
+        gx = float(j.get("gx")); gy = float(j.get("gy"))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "alvo (gx,gy) invalido"}), 400
+    grid, sess = _latest_grid()
+    if grid is None:
+        return jsonify({"ok": False, "error": "nenhum mapa salvo em maps/ (rode e salve um mapa antes)"}), 400
+    outbound = planner.plan_waypoints(grid, (0.0, 0.0), (gx, gy))
+    if not outbound:
+        return jsonify({"ok": False, "error": "sem caminho de A ate B no mapa"}), 409
+    back = planner.plan_waypoints(grid, (gx, gy), (0.0, 0.0))
+    if not back:
+        back = list(reversed(outbound[:-1])) + [(0.0, 0.0)]
+    waypoints = outbound + back
+    ok = link.start_job("roundtrip", link.job_navigate, 0.0, 0.0, waypoints, "ida e volta A-B-A")
+    if not ok:
+        return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
+    return jsonify({"ok": True, "map": sess, "outbound": outbound, "return": back, "waypoints": waypoints})
 
 
 @app.post("/api/map/explore")

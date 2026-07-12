@@ -49,7 +49,7 @@
 #define SENSOR_MAX_MM             350.0
 #define IR_EXCESS_MAX   520.0
 #define DT_S            0.04
-#define MAX_TIME_S      600.0
+#define MAX_TIME_S      900.0
 #define LINEAR_MM_S     120.0
 #define ANGULAR_RAD_S   2.35
 #define MAX_TRAIL       20000
@@ -78,6 +78,7 @@ typedef struct {
 typedef struct {
     double x, y;
     KhepState state;
+    int return_leg;
 } TrailPoint;
 
 typedef struct {
@@ -100,6 +101,10 @@ typedef struct {
     Waypoint waypoints[MAX_WAYPOINTS];
     int waypoint_count;
     int waypoint_index;
+    int return_leg;
+    int reached_b;
+    double active_start_x, active_start_y;
+    double active_goal_x, active_goal_y;
     KhepOutput last;
 } Sim;
 
@@ -683,14 +688,17 @@ static int nearest_free_idx(const Scenario *sc, int ix, int iy, int nx, int ny,
     return -1;
 }
 
-static int build_waypoints(const Scenario *sc, Waypoint *out, int cap) {
+static int build_waypoints(const Scenario *sc,
+                           double ax, double ay,
+                           double bx, double by,
+                           Waypoint *out, int cap) {
     int nx = (int)floor((sc->xmax - sc->xmin) / PLAN_STEP_MM) + 1;
     int ny = (int)floor((sc->ymax - sc->ymin) / PLAN_STEP_MM) + 1;
     int total = nx * ny;
     PlanNode *nodes;
     HeapItem *heap;
     int heap_count = 0;
-    int sx, sy, gx, gy, start, goal, found = 0;
+    int six, siy, gix, giy, start, goal, found = 0;
     int i, idx;
     int *path;
     int path_count = 0;
@@ -727,12 +735,12 @@ static int build_waypoints(const Scenario *sc, Waypoint *out, int cap) {
         nodes[i].blocked = (unsigned char)plan_blocked(sc, px, py);
     }
 
-    sx = (int)floor((0.0 - sc->xmin) / PLAN_STEP_MM + 0.5);
-    sy = (int)floor((0.0 - sc->ymin) / PLAN_STEP_MM + 0.5);
-    gx = (int)floor((sc->gx - sc->xmin) / PLAN_STEP_MM + 0.5);
-    gy = (int)floor((sc->gy - sc->ymin) / PLAN_STEP_MM + 0.5);
-    start = nearest_free_idx(sc, sx, sy, nx, ny, sc->xmin, sc->ymin, nodes);
-    goal = nearest_free_idx(sc, gx, gy, nx, ny, sc->xmin, sc->ymin, nodes);
+    six = (int)floor((ax - sc->xmin) / PLAN_STEP_MM + 0.5);
+    siy = (int)floor((ay - sc->ymin) / PLAN_STEP_MM + 0.5);
+    gix = (int)floor((bx - sc->xmin) / PLAN_STEP_MM + 0.5);
+    giy = (int)floor((by - sc->ymin) / PLAN_STEP_MM + 0.5);
+    start = nearest_free_idx(sc, six, siy, nx, ny, sc->xmin, sc->ymin, nodes);
+    goal = nearest_free_idx(sc, gix, giy, nx, ny, sc->xmin, sc->ymin, nodes);
     if (start < 0 || goal < 0) {
         free(nodes); free(heap); free(path);
         return 0;
@@ -824,21 +832,21 @@ static int build_waypoints(const Scenario *sc, Waypoint *out, int cap) {
             anchor = next;
         }
         if (out_count == 0 ||
-            hypot(out[out_count - 1].x - sc->gx, out[out_count - 1].y - sc->gy) > ARRIVE_MM) {
-            out[out_count].x = sc->gx;
-            out[out_count].y = sc->gy;
+            hypot(out[out_count - 1].x - bx, out[out_count - 1].y - by) > ARRIVE_MM) {
+            out[out_count].x = bx;
+            out[out_count].y = by;
             out_count++;
         } else {
-            out[out_count - 1].x = sc->gx;
-            out[out_count - 1].y = sc->gy;
+            out[out_count - 1].x = bx;
+            out[out_count - 1].y = by;
         }
         free(nodes); free(heap); free(path);
         return out_count;
     }
 }
 
-static double final_goal_dist(const Scenario *sc) {
-    return hypot(sc->gx - g_sim.x, sc->gy - g_sim.y);
+static double active_goal_dist(void) {
+    return hypot(g_sim.active_goal_x - g_sim.x, g_sim.active_goal_y - g_sim.y);
 }
 
 static double current_waypoint_dist(void) {
@@ -863,6 +871,26 @@ static void set_waypoint_target(void) {
     khep_ctrl_set_segment(&g_sim.ctrl, g_sim.x, g_sim.y, wp.x, wp.y);
 }
 
+static void configure_leg(const Scenario *sc,
+                          double ax, double ay,
+                          double bx, double by,
+                          int return_leg) {
+    g_sim.return_leg = return_leg;
+    g_sim.active_start_x = ax;
+    g_sim.active_start_y = ay;
+    g_sim.active_goal_x = bx;
+    g_sim.active_goal_y = by;
+    g_sim.waypoint_count = build_waypoints(sc, ax, ay, bx, by,
+                                           g_sim.waypoints, MAX_WAYPOINTS);
+    if (g_sim.waypoint_count <= 0) {
+        g_sim.waypoint_count = 1;
+        g_sim.waypoints[0].x = bx;
+        g_sim.waypoints[0].y = by;
+    }
+    g_sim.waypoint_index = 0;
+    set_waypoint_target();
+}
+
 static int maybe_advance_waypoint(const Scenario *sc) {
     int changed = 0;
     int i;
@@ -885,6 +913,19 @@ static int maybe_advance_waypoint(const Scenario *sc) {
 
     if (changed) set_waypoint_target();
     return changed;
+}
+
+static int handle_active_goal(const Scenario *sc, double d_final) {
+    if (d_final >= ARRIVE_MM) return 0;
+    if (!g_sim.return_leg) {
+        g_sim.reached_b = 1;
+        g_sim.final_goal_mm = d_final;
+        configure_leg(sc, g_sim.x, g_sim.y, 0.0, 0.0, 1);
+        return 1;
+    }
+    g_sim.arrived = 1;
+    g_sim.final_goal_mm = d_final;
+    return 1;
 }
 
 static double cast_sensor(const Scenario *sc, double x, double y, double th, double rel) {
@@ -924,19 +965,14 @@ static void reset_sim(int idx) {
     g_sim.x = 0.0;
     g_sim.y = 0.0;
     g_sim.th = 0.0;
-    g_sim.waypoint_count = build_waypoints(sc, g_sim.waypoints, MAX_WAYPOINTS);
-    if (g_sim.waypoint_count <= 0) {
-        g_sim.waypoint_count = 1;
-        g_sim.waypoints[0].x = sc->gx;
-        g_sim.waypoints[0].y = sc->gy;
-    }
-    g_sim.waypoint_index = 0;
-    khep_ctrl_init(&g_sim.ctrl, g_sim.waypoints[0].x, g_sim.waypoints[0].y);
-    g_sim.min_goal_mm = hypot(sc->gx, sc->gy);
+    khep_ctrl_init(&g_sim.ctrl, sc->gx, sc->gy);
+    configure_leg(sc, 0.0, 0.0, sc->gx, sc->gy, 0);
+    g_sim.min_goal_mm = active_goal_dist();
     g_sim.final_goal_mm = g_sim.min_goal_mm;
     g_sim.trail[0].x = g_sim.x;
     g_sim.trail[0].y = g_sim.y;
     g_sim.trail[0].state = KHEP_GOAL;
+    g_sim.trail[0].return_leg = 0;
     g_sim.trail_count = 1;
 }
 
@@ -947,13 +983,9 @@ static void sim_step(const Scenario *sc) {
 
     if (g_sim.arrived || g_sim.collided || g_sim.timeout) return;
 
-    d_final = final_goal_dist(sc);
+    d_final = active_goal_dist();
     if (d_final < g_sim.min_goal_mm) g_sim.min_goal_mm = d_final;
-    if (d_final < ARRIVE_MM) {
-        g_sim.arrived = 1;
-        g_sim.final_goal_mm = d_final;
-        return;
-    }
+    if (handle_active_goal(sc, d_final)) return;
     maybe_advance_waypoint(sc);
 
     read_ir(sc, g_sim.x, g_sim.y, g_sim.th, &rawF, &rawFL, &rawFR, &rawL, &rawR);
@@ -976,19 +1008,16 @@ static void sim_step(const Scenario *sc) {
     g_sim.path_mm += moved;
     g_sim.t += DT_S;
 
-    d_final = final_goal_dist(sc);
+    d_final = active_goal_dist();
     if (d_final < g_sim.min_goal_mm) g_sim.min_goal_mm = d_final;
-    if (d_final < ARRIVE_MM) {
-        g_sim.arrived = 1;
-        g_sim.final_goal_mm = d_final;
-    }
+    if (handle_active_goal(sc, d_final)) return;
     if (collides(sc, g_sim.x, g_sim.y)) {
         g_sim.collided = 1;
-        g_sim.final_goal_mm = d_final;
+        g_sim.final_goal_mm = active_goal_dist();
     }
     if (g_sim.t >= MAX_TIME_S) {
         g_sim.timeout = 1;
-        g_sim.final_goal_mm = d_final;
+        g_sim.final_goal_mm = active_goal_dist();
     }
     if (!g_sim.arrived && !g_sim.collided && !g_sim.timeout) maybe_advance_waypoint(sc);
 
@@ -997,6 +1026,7 @@ static void sim_step(const Scenario *sc) {
         p->x = g_sim.x;
         p->y = g_sim.y;
         p->state = g_sim.last.state;
+        p->return_leg = g_sim.return_leg;
     }
 }
 
@@ -1105,14 +1135,16 @@ static void draw_scene(const Scenario *sc, const Sim *sim, int width, int height
 
     if (sim->waypoint_count > 0) {
         glLineWidth(2.0f);
-        gl_color(0.32, 0.24, 0.72);
+        if (sim->return_leg) gl_color(0.56, 0.20, 0.70);
+        else gl_color(0.32, 0.24, 0.72);
         glBegin(GL_LINE_STRIP);
-        glVertex2d(0.0, 0.0);
+        glVertex2d(sim->active_start_x, sim->active_start_y);
         for (i = 0; i < sim->waypoint_count; ++i) {
             glVertex2d(sim->waypoints[i].x, sim->waypoints[i].y);
         }
         glEnd();
-        gl_color(0.32, 0.24, 0.72);
+        if (sim->return_leg) gl_color(0.56, 0.20, 0.70);
+        else gl_color(0.32, 0.24, 0.72);
         for (i = 0; i < sim->waypoint_count - 1; ++i) {
             draw_circle(sim->waypoints[i].x, sim->waypoints[i].y, 13.0, 1);
         }
@@ -1122,6 +1154,7 @@ static void draw_scene(const Scenario *sc, const Sim *sim, int width, int height
         glLineWidth(3.0f);
         for (i = 1; i < sim->trail_count; ++i) {
             if (sim->trail[i].state == KHEP_WALLF) gl_color(0.08, 0.40, 0.75);
+            else if (sim->trail[i].return_leg) gl_color(0.45, 0.22, 0.58);
             else gl_color(0.18, 0.49, 0.20);
             glBegin(GL_LINES);
             glVertex2d(sim->trail[i - 1].x, sim->trail[i - 1].y);
@@ -1219,8 +1252,9 @@ static void update_window_title(void) {
     char title[256];
     const Scenario *sc = &g_scenarios[g_current];
     snprintf(title, sizeof(title),
-             "Khepera OpenGL - [%d/%d] %s | %s | t=%.1fs goal=%.0fmm wp=%d/%d path=%.0fmm walls=%d | %dx | N/P Setas R F Space Esc",
-             g_current + 1, g_scenario_count, sc->name, status_text(&g_sim), g_sim.t, final_goal_dist(sc),
+             "Khepera OpenGL - [%d/%d] %s | %s | %s | t=%.1fs goal=%.0fmm wp=%d/%d path=%.0fmm walls=%d | %dx | N/P Setas R F Space Esc",
+             g_current + 1, g_scenario_count, sc->name, status_text(&g_sim),
+             g_sim.return_leg ? "B->A" : "A->B", g_sim.t, active_goal_dist(),
              g_sim.waypoint_index + 1, g_sim.waypoint_count, g_sim.path_mm, g_sim.wall_entries, g_steps_per_tick);
     SetWindowTextA(g_hwnd, title);
 }

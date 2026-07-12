@@ -812,11 +812,12 @@
               <button id="runBtn" class="primary" type="button">Iniciar</button>
               <button id="mapExploreBtn" type="button">Mapear A-&gt;B (auto)</button>
               <button id="mapNavBtn" type="button">Navegar pelo mapa (A*)</button>
+              <button id="mapRoundtripBtn" type="button">Ir e voltar A*</button>
               <button id="stopBtn" class="danger" type="button">Parar</button>
               <button id="deployBtn" type="button">Enviar + compilar</button>
               <button id="compileBtn" type="button">Compilar</button>
             </div>
-            <p class="hint">Use duracao 0 para rodar sem <code>timeout</code>. Para teste em bancada, comece com rodas suspensas. <strong>Mapear A-&gt;B (auto)</strong> vai de A a B devagar, contorna os obstaculos e gera/salva o mapa sozinho. <strong>Navegar pelo mapa</strong> planeja A* sobre o ultimo mapa salvo e dirige o robo pelos waypoints ate o alvo (X,Y).</p>
+            <p class="hint">Use duracao 0 para rodar sem <code>timeout</code>. Para teste em bancada, comece com rodas suspensas. <strong>Mapear A-&gt;B (auto)</strong> gera/salva o mapa. <strong>Navegar pelo mapa</strong> faz A-&gt;B. <strong>Ir e voltar A*</strong> faz A-&gt;B-&gt;A usando o ultimo mapa salvo.</p>
           </div>
         </section>
 
@@ -1576,6 +1577,7 @@
       el("runBtn").disabled = !connected || busy || running;
       el("mapExploreBtn").disabled = !connected || busy || running;
       el("mapNavBtn").disabled = !connected || busy || running;
+      el("mapRoundtripBtn").disabled = !connected || busy || running;
       el("stopBtn").disabled = !connected || !running;
       el("deployBtn").disabled = !connected || busy || running;
       el("compileBtn").disabled = !connected || busy || running;
@@ -2001,6 +2003,17 @@
       }
     }
 
+    async function roundtripMap() {
+      const payload = { gx: Number(el("gxInput").value), gy: Number(el("gyInput").value) };
+      try {
+        const r = await api("/api/map/roundtrip", {method: "POST", body: JSON.stringify(payload)});
+        const n = (r && r.waypoints) ? r.waypoints.length : 0;
+        showStatus(`Ida e volta pelo mapa: ${n} waypoint(s), A->B->A.`, "ok");
+      } catch (error) {
+        showStatus(error.message, "error");
+      }
+    }
+
     async function generateSimWorlds() {
       const payload = simPayload();
       try {
@@ -2062,6 +2075,7 @@
       el("runBtn").addEventListener("click", runMission);
       el("mapExploreBtn").addEventListener("click", exploreMap);
       el("mapNavBtn").addEventListener("click", navigateMap);
+      el("mapRoundtripBtn").addEventListener("click", roundtripMap);
       el("stopBtn").addEventListener("click", stopMission);
       el("startManualBtn").addEventListener("click", startManual);
       el("mapStartBtn").addEventListener("click", startMap);
