@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Navegação Autônoma do Khepera IV — Projeto FTL094</title>
+<meta name="description" content="Navegação ponto-a-ponto com desvio de obstáculos para o robô móvel Khepera IV: arquitetura híbrida, validação em 1000 cenários e evolução para o robô físico.">
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1a2230; --muted:#5b6676;
+    --line:#e5e8ee; --accent:#0b4da2; --accent-soft:#e7f0fb;
+    --good:#1f8a4c; --good-soft:#e6f4ec; --warn:#b26a00; --brown:#a9713f;
+    --shadow:0 1px 3px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.05);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e1117; --panel:#161b23; --ink:#e6eaf1; --muted:#9aa6b6;
+      --line:#252c38; --accent:#5aa2ff; --accent-soft:#12233d;
+      --good:#4ccb84; --good-soft:#122a1e; --warn:#d9a441; --brown:#c9915f;
+      --shadow:0 1px 3px rgba(0,0,0,.4),0 12px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1117; --panel:#161b23; --ink:#e6eaf1; --muted:#9aa6b6;
+    --line:#252c38; --accent:#5aa2ff; --accent-soft:#12233d;
+    --good:#4ccb84; --good-soft:#122a1e; --warn:#d9a441; --brown:#c9915f;
+    --shadow:0 1px 3px rgba(0,0,0,.4),0 12px 30px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1a2230; --muted:#5b6676;
+    --line:#e5e8ee; --accent:#0b4da2; --accent-soft:#e7f0fb;
+    --good:#1f8a4c; --good-soft:#e6f4ec; --warn:#b26a00; --brown:#a9713f;
+    --shadow:0 1px 3px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.05);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px}
+  header.hero{background:linear-gradient(160deg,var(--accent-soft),transparent);
+    border-bottom:1px solid var(--line);padding:56px 0 40px}
+  .eyebrow{font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;margin:0 0 10px}
+  h1{font-size:2rem;line-height:1.2;margin:0 0 12px;letter-spacing:-.01em}
+  .lead{font-size:1.12rem;color:var(--muted);margin:0 0 22px;max-width:70ch}
+  .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px;
+    font-weight:600;font-size:.95rem;border:1px solid var(--line)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:transparent}
+  .btn.primary:hover{text-decoration:none;filter:brightness(1.05)}
+  .btn.ghost{background:var(--panel);color:var(--ink)}
+  section{padding:40px 0;border-bottom:1px solid var(--line)}
+  h2{font-size:1.4rem;margin:0 0 6px;letter-spacing:-.01em}
+  h2 .num{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:8px}
+  .sub{color:var(--muted);margin:0 0 22px}
+  .grid{display:grid;gap:16px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 6px;font-size:1.02rem}
+  .card p{margin:0;color:var(--muted);font-size:.94rem}
+  .stat{display:flex;flex-direction:column;gap:2px}
+  .stat .big{font-size:1.7rem;font-weight:800;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;color:var(--ink)}
+  .stat .lbl{font-size:.85rem;color:var(--muted)}
+  .figrow{display:grid;gap:16px;grid-template-columns:1fr 1fr;align-items:stretch}
+  @media (max-width:720px){.figrow{grid-template-columns:1fr}}
+  figure{margin:0;background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:16px;box-shadow:var(--shadow)}
+  figure svg{width:100%;height:auto;display:block}
+  figcaption{color:var(--muted);font-size:.86rem;margin-top:10px}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:460px}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+  thead th{background:var(--accent-soft);color:var(--ink);font-weight:700}
+  tbody tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pass{color:var(--good);font-weight:700}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.78rem;
+    font-weight:700;background:var(--good-soft);color:var(--good)}
+  ul.clean{margin:0;padding-left:1.15rem}
+  ul.clean li{margin:5px 0}
+  .team{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .member{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .member .name{font-weight:700}
+  .member .role{color:var(--muted);font-size:.9rem}
+  code{background:var(--accent-soft);padding:1px 6px;border-radius:6px;
+    font:0.86em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  footer{padding:32px 0 56px;color:var(--muted);font-size:.9rem}
+  .toggle{position:fixed;top:14px;right:14px;z-index:10;background:var(--panel);
+    border:1px solid var(--line);color:var(--ink);border-radius:10px;
+    padding:7px 11px;font-size:.85rem;cursor:pointer;box-shadow:var(--shadow)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.82rem;color:var(--muted);margin-top:4px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .dot{width:11px;height:11px;border-radius:50%}
+</style>
+</head>
+<body>
+<button class="toggle" id="themeToggle" aria-label="Alternar tema">◐ Tema</button>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">UFAM · CETELI · PPGEE — FTL094 Engenharia de Software de Tempo Real</p>
+    <h1>Navegação Autônoma Ponto-a-Ponto com Desvio de Obstáculos para o Khepera&nbsp;IV</h1>
+    <p class="lead">Um robô móvel de tração diferencial navega de um ponto <strong>A</strong> a um ponto <strong>B</strong> desviando de todos os obstáculos — em <strong>simulação (Webots)</strong> e no <strong>robô físico real</strong> — por meio de uma arquitetura híbrida arbitrada por máquina de estados finitos, validada em uma bateria de 1000 cenários.</p>
+    <div class="cta">
+      <a class="btn primary" href="relatorio.pdf">📄 Baixar relatório (PDF)</a>
+      <a class="btn ghost" href="https://github.com/maktheus/eng-soft-rt-khepera">⭐ Repositório no GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- RESULTADOS EM DESTAQUE -->
+  <section id="destaque">
+    <h2><span class="num">§</span>Resultados em destaque</h2>
+    <p class="sub">Missão completa no cenário de <em>slalom</em> com 5 obstáculos (Webots R2025a).</p>
+    <div class="grid cards">
+      <div class="card stat"><span class="big">0</span><span class="lbl">colisões na missão</span></div>
+      <div class="card stat"><span class="big">19,3 s</span><span class="lbl">tempo até a chegada (simulado)</span></div>
+      <div class="card stat"><span class="big">2,83 → 0,07 m</span><span class="lbl">distância ao alvo reduzida</span></div>
+      <div class="card stat"><span class="big">1000</span><span class="lbl">cenários na bateria de validação</span></div>
+      <div class="card stat"><span class="big">6/6</span><span class="lbl">casos de teste aprovados</span></div>
+      <div class="card stat"><span class="big">16 ms</span><span class="lbl">período do laço de tempo real</span></div>
+    </div>
+  </section>
+
+  <!-- VISAO GERAL -->
+  <section id="visao">
+    <h2><span class="num">1</span>Visão geral</h2>
+    <p class="sub">O que foi construído.</p>
+    <p>O projeto resolve a tarefa fundamental de robótica móvel de conduzir o <strong>Khepera&nbsp;IV</strong> — um robô de tração diferencial com sensoriamento infravermelho de curto alcance e sem mapa prévio — de uma configuração inicial a um alvo, sem colisões. A solução combina uma camada <em>deliberativa mínima</em> de atração ao alvo com uma camada <em>reativa</em> de desvio de obstáculos, arbitradas por uma máquina de estados que introduz <strong>compromisso de contorno</strong> (no espírito dos algoritmos Bug), eliminando o aprisionamento em mínimos locais.</p>
+    <div class="grid cards" style="margin-top:16px">
+      <div class="card"><h3>Simulação (Webots)</h3><p>Controlador em C com FSM <code>Navegar → Girar → Contornar</code>; localização por GPS+IMU. Arena 3×3 m com slalom de obstáculos.</p></div>
+      <div class="card"><h3>Robô físico</h3><p>Odometria pelos encoders, algoritmo <strong>Bug2</strong>, rastreamento de linha por ponto de controle virtual e planejamento global <strong>A*</strong>.</p></div>
+      <div class="card"><h3>Validação em escala</h3><p>Simulador OpenGL que reusa o mesmo núcleo de controle do robô real, exercitado em <strong>1000 mundos</strong> de dificuldade progressiva.</p></div>
+      <div class="card"><h3>Interface web</h3><p>Painel Flask para conectar por USB/Wi-Fi, fazer deploy, recompilar, teleoperar, mapear e navegar por A* sobre o mapa.</p></div>
+    </div>
+  </section>
+
+  <!-- ARQUITETURA -->
+  <section id="arquitetura">
+    <h2><span class="num">2</span>Arquitetura de controle</h2>
+    <p class="sub">Híbrida na simulação; Bug2 com ponto-P no robô físico.</p>
+    <p>Na simulação, o comando de giro combina um termo <em>atrativo</em> (proporcional ao erro de rumo ao alvo) com um termo <em>repulsivo</em> (massa de obstáculo à esquerda vs. direita). Ao detectar parede à frente, a FSM fixa uma direção de escape e gira comprometida até a frente limpar, depois avança uma distância fixa para ultrapassar o obstáculo antes de re-mirar o alvo.</p>
+    <figure aria-label="Máquina de estados finitos">
+      <svg viewBox="0 0 620 130" role="img">
+        <defs>
+          <marker id="arw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L7,3 L0,6 Z" fill="var(--accent)"></path>
+          </marker>
+        </defs>
+        <g font-size="14" font-weight="700" text-anchor="middle" fill="var(--ink)">
+          <rect x="30" y="42" width="150" height="46" rx="10" fill="var(--accent-soft)" stroke="var(--accent)"></rect>
+          <text x="105" y="62">NAVEGAR</text><text x="105" y="79" font-size="11" font-weight="400" fill="var(--muted)">vai ao alvo</text>
+          <rect x="235" y="42" width="150" height="46" rx="10" fill="var(--panel)" stroke="var(--accent)"></rect>
+          <text x="310" y="62">GIRAR</text><text x="310" y="79" font-size="11" font-weight="400" fill="var(--muted)">gira até limpar</text>
+          <rect x="440" y="42" width="150" height="46" rx="10" fill="var(--panel)" stroke="var(--accent)"></rect>
+          <text x="515" y="62">CONTORNAR</text><text x="515" y="79" font-size="11" font-weight="400" fill="var(--muted)">passa a caixa</text>
+        </g>
+        <g stroke="var(--accent)" stroke-width="1.6" fill="none" marker-end="url(#arw)">
+          <path d="M180,58 L233,58"></path>
+          <path d="M385,58 L438,58"></path>
+          <path d="M470,90 C400,120 250,120 150,92" ></path>
+        </g>
+        <g font-size="10.5" fill="var(--muted)" text-anchor="middle">
+          <text x="206" y="50">frente &gt; trig</text>
+          <text x="411" y="50">frente &lt; clear</text>
+          <text x="310" y="118">percorreu dₚ → NAVEGAR</text>
+        </g>
+      </svg>
+      <figcaption>Máquina de estados finitos que arbitra atração ao alvo e desvio comprometido de obstáculos (controlador de simulação).</figcaption>
+    </figure>
+    <p style="margin-top:18px">No <strong>robô físico</strong>, sem GPS, a pose é estimada por odometria (147,4 pulsos/mm; base 105,4 mm) e a política é o <strong>Bug2</strong> canônico: segue a linha A→B; ao topar num obstáculo, contorna-o mantendo-o de um lado; e larga a parede assim que <em>recruza a linha A→B mais perto de B</em>. Um <strong>ponto de controle virtual</strong> à frente do eixo garante o retorno ao eixo após o contorno (malha externa de um controle em cascata, com correção proporcional-integral e anti-windup do erro lateral).</p>
+  </section>
+
+  <!-- RESULTADOS MISSAO -->
+  <section id="resultados">
+    <h2><span class="num">3</span>Resultados da missão (Webots)</h2>
+    <p class="sub">Trajetória livre de colisões e convergência ao alvo.</p>
+    <div class="figrow">
+      <figure aria-label="Trajetória executada">
+        <svg viewBox="-6 -6 312 312" role="img">
+          <rect x="0" y="0" width="300" height="300" fill="none" stroke="var(--line)"></rect>
+          <!-- obstaculos -->
+          <g fill="var(--brown)" opacity="0.55">
+            <rect x="90" y="190" width="20" height="20"></rect>
+            <rect x="137.5" y="137.5" width="25" height="25"></rect>
+            <rect x="190" y="90" width="20" height="20"></rect>
+            <rect x="182.5" y="172.5" width="15" height="15"></rect>
+            <rect x="112.5" y="102.5" width="15" height="15"></rect>
+          </g>
+          <!-- trajetoria -->
+          <polyline fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"
+            points="50.0,250.0 65.0,235.0 80.0,220.0 83.0,212.0 71.0,203.0 58.0,194.0 59.0,182.0 70.0,168.0 87.0,155.0 105.0,143.0 123.0,132.0 142.0,121.0 159.0,109.0 177.0,97.0 180.0,84.0 179.0,66.0 184.0,55.0 201.0,49.0 221.0,47.0 241.0,47.0 244.0,47.0"></polyline>
+          <circle cx="50" cy="250" r="6" fill="var(--good)"></circle>
+          <rect x="244" y="44" width="12" height="12" fill="#d33"></rect>
+        </svg>
+        <figcaption>Trajetória de (−1,−1) a (1,1). <span style="color:var(--good)">●</span> início · <span style="color:#d33">■</span> alvo · <span style="color:var(--brown)">■</span> obstáculos.</figcaption>
+      </figure>
+      <figure aria-label="Convergência ao alvo">
+        <svg viewBox="0 0 500 240" role="img">
+          <!-- eixos -->
+          <line x1="44" y1="16" x2="44" y2="216" stroke="var(--line)"></line>
+          <line x1="44" y1="216" x2="484" y2="216" stroke="var(--line)"></line>
+          <!-- tolerancia -->
+          <line x1="44" y1="211.3" x2="484" y2="211.3" stroke="#d33" stroke-dasharray="5 4" stroke-width="1.3"></line>
+          <text x="48" y="207" font-size="10" fill="#d33">tolerância 0,07 m</text>
+          <!-- curva -->
+          <polyline fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round"
+            points="44.0,27.3 66.0,41.3 88.0,56.0 110.0,60.7 132.0,58.7 156.2,56.0 178.2,60.7 200.2,72.7 222.2,86.7 244.2,100.7 266.2,115.3 288.2,129.3 310.2,144.0 332.2,158.7 354.2,164.7 376.2,167.3 398.2,172.0 422.4,183.3 444.4,196.7 466.4,210.0 468.6,216.0"></polyline>
+          <g font-size="11" fill="var(--muted)">
+            <text x="30" y="20" text-anchor="end">3</text>
+            <text x="30" y="120" text-anchor="end">1,5</text>
+            <text x="30" y="219" text-anchor="end">0</text>
+            <text x="44" y="232" text-anchor="middle">0</text>
+            <text x="264" y="232" text-anchor="middle">tempo (s)</text>
+            <text x="484" y="232" text-anchor="end">20</text>
+          </g>
+        </svg>
+        <figcaption>Distância ao alvo × tempo. O leve aumento em t∈[3,6] s é o custo do contorno da primeira caixa.</figcaption>
+      </figure>
+    </div>
+
+    <h3 style="margin:26px 0 8px;font-size:1.05rem">Calibração empírica do sensoriamento infravermelho</h3>
+    <p style="margin-top:0">Uma contribuição metodológica: a folha de dados prevê leitura ≈29 em espaço livre, mas a telemetria mediu ≈100–120 (reflexão do piso). Recalibrar os limiares acima da base medida foi decisivo — <em>sensores devem ser caracterizados por medição, não por suposição.</em></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Condição</th><th class="num">Previsto (folha)</th><th class="num">Medido</th></tr></thead>
+        <tbody>
+          <tr><td>Espaço livre (&gt;20 cm)</td><td class="num">≈ 29</td><td class="num">≈ 100–120</td></tr>
+          <tr><td>Obstáculo frontal (≈3 cm)</td><td class="num">≈ 150</td><td class="num">≈ 250–300</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- V&V -->
+  <section id="vv">
+    <h2><span class="num">4</span>Verificação e validação</h2>
+    <p class="sub">Campanha de casos de teste + bateria de 1000 mundos.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>ID</th><th>Objetivo</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td>CT-01</td><td>Navegar em caminho livre</td><td><span class="pill">PASSOU</span></td></tr>
+          <tr><td>CT-02</td><td>Desviar de obstáculo frontal isolado</td><td><span class="pill">PASSOU</span></td></tr>
+          <tr><td>CT-03</td><td>Missão no slalom de 5 obstáculos</td><td><span class="pill">PASSOU</span></td></tr>
+          <tr><td>CT-04</td><td>Escapar de mínimo local</td><td><span class="pill">PASSOU</span></td></tr>
+          <tr><td>CT-05</td><td>Respeitar o período do laço (16 ms)</td><td><span class="pill">PASSOU</span></td></tr>
+          <tr><td>CT-06</td><td>Telemetria e calibração de sensores</td><td><span class="pill">PASSOU</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:18px">Três defeitos foram diagnosticados e corrigidos exclusivamente pela leitura da telemetria instrumentada: aprisionamento em mínimo local <em>(DEF-01)</em>, rodopio por má calibração dos limiares de IR <em>(DEF-02)</em> e perda de telemetria por <em>buffering</em> de saída <em>(DEF-03)</em>.</p>
+    <div class="card" style="margin-top:16px">
+      <h3>Bateria de 1000 mundos no simulador OpenGL</h3>
+      <p style="color:var(--ink)">Um simulador visual em OpenGL <strong>inclui diretamente o mesmo <code>controller_core.h</code> do robô físico</strong> — a janela e o robô real executam exatamente a mesma máquina de estados <code>Goal / Wall-follow / Beirada</code>, trocando apenas o hardware por raycast de sensores IR e cinemática diferencial aproximada. Um gerador parametrizável produz 1000 cenários de dificuldade progressiva (até 33 caixas por mundo, com seed fixa e reprodutível), e o modo <em>batch</em> classifica cada desfecho em <code>ARRIVED</code>, <code>COLLISION</code> ou <code>TIMEOUT</code>. O robô chega ao alvo na esmagadora maioria dos cenários; colisões e timeouts concentram-se nos mundos densamente povoados, onde a natureza reativa do Bug2 encontra seus limites teóricos.</p>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--good)"></span>Goal — rastreia a linha A→B</span>
+        <span><span class="dot" style="background:var(--accent)"></span>Wall-follow — contorna obstáculo</span>
+        <span><span class="dot" style="background:var(--brown)"></span>obstáculo (área inflada pelo raio)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ENTREGAVEIS -->
+  <section id="entregaveis">
+    <h2><span class="num">5</span>Entregáveis e estrutura do repositório</h2>
+    <p class="sub">Conjunto completo de artefatos de engenharia de software.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Componente</th><th>Local</th></tr></thead>
+        <tbody>
+          <tr><td>Controlador da simulação (Webots, C)</td><td><code>controllers/goto_avoid/</code></td></tr>
+          <tr><td>Mundo Webots (arena 3×3 com slalom)</td><td><code>worlds/first.wbt</code></td></tr>
+          <tr><td>Controlador do robô físico (Bug2, C)</td><td><code>khepera_real/patrulha/</code></td></tr>
+          <tr><td>Simulador OpenGL + bateria de 1000 mundos</td><td><code>tools/sim_khepera/</code></td></tr>
+          <tr><td>Planejador global A* (Python)</td><td><code>interface/planner.py</code></td></tr>
+          <tr><td>Interface web de operação (Flask)</td><td><code>interface/</code></td></tr>
+          <tr><td>Documentos de engenharia (LaTeX/PDF)</td><td><code>entregaveis/</code></td></tr>
+          <tr><td>Relatório técnico completo</td><td><code>relatorio/</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px">Os documentos em <code>entregaveis/</code> incluem: plano de projeto, análise de requisitos, arquitetura, plano e protocolo de testes, listagem de código-fonte e apresentação final.</p>
+  </section>
+
+  <!-- EQUIPE -->
+  <section id="equipe">
+    <h2><span class="num">6</span>Equipe</h2>
+    <p class="sub">PPGEE / CETELI / UFAM — Período 2026/1.</p>
+    <div class="team">
+      <div class="member"><div class="name">Matheus Serrão Uchôa</div><div class="role">Líder técnico — arquitetura, controlador e integração</div></div>
+      <div class="member"><div class="name">Gabriel Henrique de Souza Nazaré</div><div class="role">Engenharia de requisitos</div></div>
+      <div class="member"><div class="name">Matheus Rocha Canto</div><div class="role">Arquitetura e projeto modular</div></div>
+      <div class="member"><div class="name">Luan Alexandre Ramos Barreto</div><div class="role">Engenharia de testes</div></div>
+      <div class="member"><div class="name">Ricardo Mendonça Braz</div><div class="role">Gerência de projeto</div></div>
+      <div class="member"><div class="name">Yan Fernandes da Silva</div><div class="role">Documentação e integração</div></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <p>Projeto da disciplina <strong>FTL094 — Engenharia de Software de Tempo Real</strong>, PPGEE/CETELI/UFAM.
+  · <a href="relatorio.pdf">Relatório (PDF)</a>
+  · <a href="https://github.com/maktheus/eng-soft-rt-khepera">Código-fonte</a></p>
+</footer>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeToggle');
+    function set(t){root.setAttribute('data-theme',t);try{localStorage.setItem('theme',t)}catch(e){}}
+    try{var s=localStorage.getItem('theme');if(s)set(s)}catch(e){}
+    btn.addEventListener('click',function(){
+      var cur=root.getAttribute('data-theme');
+      if(!cur){cur=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}
+      set(cur==='dark'?'light':'dark');
+    });
+  })();
+</script>
+</body>
+</html>
