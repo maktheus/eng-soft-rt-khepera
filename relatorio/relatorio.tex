@@ -38,6 +38,13 @@
   basicstyle=\ttfamily\scriptsize, frame=single, breaklines=true,
   backgroundcolor=\color{codegray}, columns=fullflexible
 }
+\lstdefinestyle{py}{
+  language=Python, basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{codeblue}\bfseries, commentstyle=\color{codegreen}\itshape,
+  stringstyle=\color{codered}, numbers=left, numberstyle=\tiny\color{gray},
+  frame=single, breaklines=true, tabsize=2, showstringspaces=false,
+  captionpos=b, columns=fullflexible
+}
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -55,8 +62,15 @@
   \textbf{Navegação Autônoma Ponto-a-Ponto com Desvio Reativo de Obstáculos para o Robô Móvel Khepera~IV: uma Arquitetura Híbrida Baseada em Máquina de Estados Finitos em Ambiente de Simulação Webots}\\[4pt]
   \rule{\textwidth}{0.4pt}
 }
-\author{Matheus Serrão Uchôa\thanks{Discente, PPGEE/CETELI --- Universidade Federal do Amazonas (UFAM), Manaus--AM, Brasil.}}
-\date{Manaus --- AM, Junho de 2026}
+\author{%
+  Gabriel Henrique de Souza Nazaré \and
+  Luan Alexandre Ramos Barreto \and
+  Matheus Rocha Canto \and
+  Matheus Serrão Uchôa \and
+  Ricardo Mendonça Braz \and
+  Yan Fernandes da Silva%
+  \thanks{Equipe FTL094 --- Discentes do PPGEE/CETELI, Universidade Federal do Amazonas (UFAM), Manaus--AM, Brasil.}}
+\date{Manaus --- AM, Julho de 2026}
 
 \begin{document}
 \maketitle
@@ -64,7 +78,7 @@
 
 \begin{abstract}
 \noindent
-Este relatório apresenta o projeto, a implementação e a avaliação experimental de um controlador de navegação autônoma para o robô móvel de tração diferencial Khepera~IV, com o objetivo de deslocá-lo de uma configuração inicial a uma configuração-alvo em um ambiente povoado por obstáculos, sem colisões, em condições representativas de competições de robótica. O trabalho foi conduzido no simulador Webots R2025a, utilizando o modelo oficial do Khepera~IV. Propõe-se uma \emph{arquitetura híbrida} que combina uma camada deliberativa mínima de atração ao alvo (controle proporcional de rumo a partir de localização por GPS e unidade inercial) com uma camada reativa de desvio de obstáculos inspirada nos campos potenciais e nos veículos de Braitenberg, arbitradas por uma \emph{máquina de estados finitos} (\textsc{Navegar}, \textsc{Girar}, \textsc{Contornar}) que introduz \emph{compromisso de contorno} no espírito dos algoritmos Bug, eliminando o aprisionamento em mínimos locais. Reporta-se, ainda, uma contribuição metodológica: a calibração \emph{empírica} dos sensores infravermelhos por meio de telemetria instrumentada, que revelou uma discrepância significativa entre a leitura prevista em folha de dados ($\approx 29$) e a leitura medida em espaço livre ($\approx 110$), causada pela reflexão do piso. A análise dos registros de execução permitiu diagnosticar e corrigir duas falhas distintas (aprisionamento em mínimo local e rodopio por má calibração). Na configuração final, o robô percorreu a trajetória de forma livre de colisões, reduzindo a distância ao alvo de $2{,}83$~m a menos de $0{,}07$~m em $19{,}3$~s de tempo simulado. Discute-se a relação do laço de controle com o modelo de tarefa periódica de sistemas de tempo real. Documenta-se, por fim, a \emph{evolução para o robô físico}: substituição do GPS por odometria, \emph{rastreamento de linha por ponto de controle virtual} (malha cinemática de controle em cascata) e uma camada deliberativa de \emph{mapeamento com planejamento global $A^\star$}.
+Este relatório apresenta o projeto, a implementação e a avaliação experimental de um controlador de navegação autônoma para o robô móvel de tração diferencial Khepera~IV, com o objetivo de deslocá-lo de uma configuração inicial a uma configuração-alvo em um ambiente povoado por obstáculos, sem colisões, em condições representativas de competições de robótica. O trabalho foi conduzido no simulador Webots R2025a, utilizando o modelo oficial do Khepera~IV. Propõe-se uma \emph{arquitetura híbrida} que combina uma camada deliberativa mínima de atração ao alvo (controle proporcional de rumo a partir de localização por GPS e unidade inercial) com uma camada reativa de desvio de obstáculos inspirada nos campos potenciais e nos veículos de Braitenberg, arbitradas por uma \emph{máquina de estados finitos} (\textsc{Navegar}, \textsc{Girar}, \textsc{Contornar}) que introduz \emph{compromisso de contorno} no espírito dos algoritmos Bug, eliminando o aprisionamento em mínimos locais. Reporta-se, ainda, uma contribuição metodológica: a calibração \emph{empírica} dos sensores infravermelhos por meio de telemetria instrumentada, que revelou uma discrepância significativa entre a leitura prevista em folha de dados ($\approx 29$) e a leitura medida em espaço livre ($\approx 110$), causada pela reflexão do piso. A análise dos registros de execução permitiu diagnosticar e corrigir duas falhas distintas (aprisionamento em mínimo local e rodopio por má calibração). Na configuração final, o robô percorreu a trajetória de forma livre de colisões, reduzindo a distância ao alvo de $2{,}83$~m a menos de $0{,}07$~m em $19{,}3$~s de tempo simulado. Discute-se a relação do laço de controle com o modelo de tarefa periódica de sistemas de tempo real. O software foi \emph{verificado e validado} por uma bateria de casos de teste em modo \emph{headless} (registrando defeitos e correções) e, adicionalmente, por um \emph{simulador OpenGL} que compartilha o mesmo núcleo de controle do robô físico e o exercitou em uma \emph{bateria de $1000$ cenários} de dificuldade progressiva. Documenta-se, por fim, a \emph{evolução para o robô físico}: substituição do GPS por odometria, \emph{rastreamento de linha por ponto de controle virtual} (malha cinemática de controle em cascata), uma camada deliberativa de \emph{mapeamento com planejamento global $A^\star$} e uma \emph{interface web} de operação. O trabalho foi conduzido por uma equipe de seis integrantes seguindo um processo de engenharia de software com o conjunto completo de artefatos (plano de projeto, análise de requisitos, arquitetura, plano e protocolo de testes, código-fonte e apresentação).
 
 \vspace{6pt}
 \noindent\textbf{Palavras-chave:} robótica móvel; navegação autônoma; desvio de obstáculos; Khepera~IV; campos potenciais; máquina de estados; sistemas de tempo real; Webots.
@@ -96,10 +110,10 @@ Seja $\mathbf{p}=(x,y)$ a posição do robô no plano e $\mathbf{p}_g=(x_g,y_g)$
 \end{itemize}
 
 \subsection{Contribuições}
-As principais contribuições deste relatório são: (i) uma arquitetura de controle híbrida arbitrada por máquina de estados finitos que une atração ao alvo, desvio reativo e \emph{contorno comprometido} de obstáculos; (ii) uma metodologia de calibração empírica do sensoriamento infravermelho baseada em instrumentação e análise de telemetria, evidenciando o perigo de confiar cegamente em folhas de dados; e (iii) uma análise experimental, com dados reais de execução, do fenômeno de mínimo local e de sua mitigação.
+As principais contribuições deste relatório são: (i) uma arquitetura de controle híbrida arbitrada por máquina de estados finitos que une atração ao alvo, desvio reativo e \emph{contorno comprometido} de obstáculos; (ii) uma metodologia de calibração empírica do sensoriamento infravermelho baseada em instrumentação e análise de telemetria, evidenciando o perigo de confiar cegamente em folhas de dados; (iii) uma análise experimental, com dados reais de execução, do fenômeno de mínimo local e de sua mitigação; (iv) uma estratégia de \emph{verificação e validação} que combina casos de teste em simulação com uma \emph{bateria de $1000$ cenários} exercitada por um simulador OpenGL que reusa o mesmo núcleo de controle do robô físico; e (v) a transferência do controlador para o \emph{Khepera~IV físico} (odometria, algoritmo Bug2, rastreamento por ponto de controle virtual e planejamento $A^\star$) operado por uma interface web.
 
 \subsection{Organização}
-A Seção~\ref{sec:fund} apresenta a fundamentação teórica e a revisão da literatura. A Seção~\ref{sec:metodo} descreve materiais e métodos. A Seção~\ref{sec:resultados} expõe e discute os resultados. A Seção~\ref{sec:real} documenta a evolução para o robô físico (odometria, rastreamento por ponto de controle virtual e planejamento $A^\star$ sobre mapa). A Seção~\ref{sec:conclusao} conclui e aponta trabalhos futuros.
+A Seção~\ref{sec:fund} apresenta a fundamentação teórica e a revisão da literatura. A Seção~\ref{sec:metodo} descreve materiais e métodos, incluindo o processo de engenharia, a equipe e os entregáveis produzidos. A Seção~\ref{sec:resultados} expõe e discute os resultados da missão em Webots. A Seção~\ref{sec:vv} apresenta a verificação e validação (casos de teste e a bateria de $1000$ cenários no simulador OpenGL). A Seção~\ref{sec:real} documenta a evolução para o robô físico (odometria, rastreamento por ponto de controle virtual, planejamento $A^\star$ sobre mapa e interface web). A Seção~\ref{sec:conclusao} conclui e aponta trabalhos futuros.
 
 % =====================================================================
 \section{Fundamentação Teórica e Revisão da Literatura}\label{sec:fund}
@@ -129,6 +143,47 @@ O Webots \cite{michel2004webots} é um simulador profissional de robótica que i
 % =====================================================================
 \section{Materiais e Métodos}\label{sec:metodo}
 % =====================================================================
+
+\subsection{Processo de engenharia, equipe e entregáveis}\label{sec:equipe}
+O trabalho foi conduzido por uma equipe de \textbf{seis integrantes} do PPGEE/CETELI, com papéis definidos segundo um processo de engenharia de software (Tabela~\ref{tab:equipe}). Além do software de controle, produziu-se o conjunto completo de \emph{artefatos de engenharia} da disciplina, versionados no repositório do projeto (Tabela~\ref{tab:entreg}): plano de projeto, análise de requisitos, documento de arquitetura, plano e protocolo de testes, listagem de código-fonte e apresentação final, cada um em \LaTeX{} com PDF correspondente.
+
+\begin{table}[H]
+\centering
+\caption{Equipe e papéis no projeto.}
+\label{tab:equipe}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Integrante} & \textbf{Papel} \\
+\midrule
+Matheus Serrão Uchôa & Líder técnico --- arquitetura, controlador e integração \\
+Gabriel Henrique de Souza Nazaré & Engenharia de requisitos \\
+Matheus Rocha Canto & Arquitetura e projeto modular \\
+Luan Alexandre Ramos Barreto & Engenharia de testes (plano, execução, protocolo) \\
+Ricardo Mendonça Braz & Gerência de projeto (cronograma, riscos) \\
+Yan Fernandes da Silva & Documentação técnica e integração de artefatos \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Entregáveis do projeto e componentes do repositório.}
+\label{tab:entreg}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Componente} & \textbf{Local no repositório} \\
+\midrule
+Controlador da simulação (Webots, C) & \texttt{controllers/goto\_avoid/} \\
+Mundo Webots (arena $3\times3$ com \emph{slalom}) & \texttt{worlds/first.wbt} \\
+Controlador do robô físico (Bug2, C) & \texttt{khepera\_real/patrulha/} \\
+Simulador OpenGL + bateria de 1000 mundos & \texttt{tools/sim\_khepera/} \\
+Planejador global $A^\star$ (Python) & \texttt{interface/planner.py} \\
+Interface web de operação (Flask) & \texttt{interface/} \\
+Documentos de engenharia (\LaTeX/PDF) & \texttt{entregaveis/} \\
+Relatório técnico (este documento) & \texttt{relatorio/} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Ambiente de simulação}
 Utilizou-se o Webots R2025a em sistema operacional Windows~11. O controlador foi implementado em linguagem \textbf{C} (compilado pela cadeia de ferramentas MinGW-w64 embarcada no próprio Webots), escolha alinhada à natureza embarcada e de tempo real da disciplina. A Tabela~\ref{tab:disp} resume os dispositivos do Khepera~IV efetivamente empregados.
@@ -233,7 +288,7 @@ switch (state) {
     else if (hypot(pos[0]-pass_x, pos[1]-pass_y) > PASS_DIST) state = NAVEGAR;
     break;
 }
-</lstlisting>
+\end{lstlisting}
 
 \subsection{Parâmetros de controle}
 A Tabela~\ref{tab:param} lista os parâmetros e os valores finais adotados (a justificativa empírica dos limiares de IR é dada na Seção~\ref{sec:calib}).
@@ -264,10 +319,12 @@ Período do laço & $T$ & $16$~ms \\
 Para obter medições reprodutíveis, o controlador foi \emph{instrumentado}: a cada segundo de tempo simulado registra-se uma linha de telemetria (estado, posição, distância, erro de rumo, leituras de IR e velocidades de roda) em arquivo, com descarga imediata de \emph{buffer} (\texttt{fflush}) para garantir persistência mesmo em encerramento abrupto. As execuções foram realizadas em modo acelerado, sem renderização (\emph{headless}), o que permitiu coletar centenas de ciclos de controle em poucos segundos de tempo de relógio. A análise dos registros norteou tanto o diagnóstico de falhas quanto a calibração dos sensores.
 
 % =====================================================================
-\section{Resultados e Discussão}\label{sec:resultados}
+\section{Resultados e Discussão}
+\label{sec:resultados}
 % =====================================================================
 
-\subsection{Calibração empírica do sensoriamento infravermelho}\label{sec:calib}
+\subsection{Calibração empírica do sensoriamento infravermelho}
+\label{sec:calib}
 A folha de dados do sensor (tabela de conversão do modelo) sugere que, em espaço livre ($>20$~cm), a leitura tende a $\approx 29$. Contudo, a telemetria coletada em espaço aberto evidenciou leituras de \emph{base} consistentemente em torno de $100$--$120$ (Tabela~\ref{tab:calib}), atribuíveis à reflexão do piso captada pelos sensores infravermelhos, que são montados com leve inclinação. Já um obstáculo (caixa) imediatamente à frente produz leituras $\approx 280$.
 
 \begin{table}[H]
@@ -387,6 +444,107 @@ Obstáculos contornados & $5$ (caixas) \\
 Os resultados confirmam que a arquitetura híbrida com compromisso de contorno resolve a tarefa proposta de forma robusta, superando as duas falhas diagnosticadas. Três pontos merecem destaque. \emph{Primeiro}, a importância da \textbf{observabilidade}: a telemetria instrumentada foi o instrumento decisivo de depuração --- coerente com a prática de engenharia de software de tempo real, em que a inspeção do laço de controle é essencial. \emph{Segundo}, a \textbf{calibração empírica}: o caso ilustra de modo contundente os riscos de confiar em folhas de dados sem medição. \emph{Terceiro}, as \textbf{limitações}: (i) a abordagem reativa não é completa --- geometrias adversas (p.\,ex.\ armadilhas em ``U'' profundas) ainda podem desafiar a heurística de escape; (ii) o uso de GPS é uma simplificação de simulação; e (iii) o curto alcance do IR impõe velocidade de cruzeiro moderada, sob pena de reação tardia (um \emph{trade-off} de tempo real entre velocidade e distância de reação).
 
 % =====================================================================
+\section{Verificação e Validação}\label{sec:vv}
+% =====================================================================
+A verificação e validação (V\&V) do software seguiu o plano de testes do projeto e combinou duas frentes complementares: (i) uma \emph{campanha de casos de teste} sobre a missão em Webots, orientada a requisitos e observada por telemetria; e (ii) uma \emph{validação em larga escala} do núcleo de controle do robô físico, exercitado por um simulador OpenGL sobre uma bateria de $1000$ cenários.
+
+\subsection{Campanha de casos de teste (Webots)}
+Definiram-se seis casos de teste (CT-01 a CT-06) cobrindo navegação em caminho livre, desvio de obstáculo isolado, a missão completa no \emph{slalom}, o escape de mínimo local, o período do laço de tempo real e a instrumentação/calibração. A execução deu-se em modo \emph{headless} (\texttt{--batch --mode=fast --no-rendering}), com veredito objetivo por telemetria. A Tabela~\ref{tab:ct} consolida o resultado: \textbf{todos os seis casos foram aprovados} (dois deles após a correção dos defeitos diagnosticados na Seção~\ref{sec:resultados}).
+
+\begin{table}[H]
+\centering
+\caption{Resultados da campanha de casos de teste.}
+\label{tab:ct}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}llcl@{}}
+\toprule
+\textbf{ID} & \textbf{Objetivo} & \textbf{Result.} & \textbf{Evidência} \\
+\midrule
+CT-01 & Navegar em caminho livre & PASSOU & avanço direto, $d:2{,}83\to2{,}40$~m ($t{=}0$--$2$~s) \\
+CT-02 & Desviar de obstáculo frontal & PASSOU & contorno da 1ª caixa ($t\approx3$~s) \\
+CT-03 & Missão no \emph{slalom} (5 caixas) & PASSOU & chegada em $19{,}3$~s, \textbf{0 colisões} \\
+CT-04 & Escapar de mínimo local & PASSOU$^\dagger$ & FSM contorna; posição não estaciona \\
+CT-05 & Período do laço ($16$~ms) & PASSOU & passos regulares na telemetria \\
+CT-06 & Telemetria e calibração de IR & PASSOU & \texttt{run.log} gerado; base medida $\approx110$ \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize $^\dagger$ Reprovado na primeira execução (defeito DEF-01) e \emph{reaprovado} após correção.}
+\end{table}
+
+Durante a campanha registraram-se três defeitos (Tabela~\ref{tab:def}), todos corrigidos e com os casos afetados reexecutados com sucesso --- coerente com a análise de falhas da Seção~\ref{sec:resultados}.
+
+\begin{table}[H]
+\centering
+\caption{Registro de defeitos da campanha de testes.}
+\label{tab:def}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}llcl@{}}
+\toprule
+\textbf{Id} & \textbf{Descrição} & \textbf{Sever.} & \textbf{Status} \\
+\midrule
+DEF-01 & Aprisionamento em mínimo local (campo potencial puro) & Alta & Corrigido \\
+DEF-02 & Limiares de IR pela folha de dados: rodopio na largada & Alta & Corrigido \\
+DEF-03 & Perda de telemetria por \emph{buffering} de \texttt{stdout} & Baixa & Corrigido \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Validação em larga escala: simulador OpenGL e bateria de 1000 mundos}\label{sec:sim1000}
+Para exercitar o controlador muito além de um único cenário, desenvolveu-se um \textbf{simulador visual em OpenGL} (\texttt{tools/sim\_khepera/khepera\_gl.c}) com uma propriedade metodológica central: ele \emph{inclui diretamente} o mesmo cabeçalho de controle do robô físico (\texttt{khepera\_real/\allowbreak patrulha/\allowbreak controller\_core.h}). Assim, a janela OpenGL e o robô real executam \emph{exatamente} a mesma máquina de estados \textsc{Goal}/\textsc{Wall-follow}/\textsc{Beirada}; a simulação apenas troca o hardware por \emph{raycast} de sensores IR e cinemática diferencial aproximada. Isso torna o simulador um \emph{gêmeo de simulação} fiel do controlador embarcado, e não um modelo à parte.
+
+Um gerador parametrizável (\texttt{generate\_worlds.py}) produz uma bateria de \textbf{$1000$ cenários} de \emph{dificuldade progressiva} (de $1$ a $1000$), com o número de caixas crescendo até $33$ obstáculos por mundo, posições, dimensões e destinos sorteados por \emph{seed} fixa (reprodutível). O gerador insere deliberadamente caixas no corredor frontal entre robô e alvo, evitando cenários triviais de linha $A\!\to\!B$ vazia; trata-se de uma bateria de \emph{estresse}, em que alguns mundos podem legitimamente levar a colisão ou \emph{timeout}. Em modo \emph{batch} (\texttt{--batch}), o simulador roda todos os cenários sem interação e emite \texttt{summary.txt} com uma linha por cenário (Listagem~\ref{lst:summary}), classificando o desfecho em \textsc{Arrived}, \textsc{Collision} ou \textsc{Timeout}, além de salvar quadros \texttt{.bmp} do primeiro cenário, do último e de eventuais falhas para inspeção visual.
+
+\begin{lstlisting}[style=log,caption={Cabeçalho e amostra do \texttt{summary.txt} da bateria de 1000 mundos.},label={lst:summary}]
+scenario,status,time_s,path_mm,min_goal_mm,final_goal_mm,wall_entries,samples
+case_0001_single_pair,ARRIVED,7.4,2153,61,61,1,185
+case_0002_pair,ARRIVED,8.1,2288,54,54,2,203
+...
+case_1000_dense,TIMEOUT,900.0,14980,131,131,29,22500
+\end{lstlisting}
+
+A Figura~\ref{fig:gl} ilustra a \emph{leitura da visualização} do simulador, com a semântica de cores usada tanto na janela interativa quanto nos quadros de \emph{batch}. O mesmo painel é acessível pela interface web (Seção~\ref{sec:real}), que gera o JSON, dispara o \emph{batch} e resume chegadas, falhas e \emph{timeouts} do último \texttt{summary.txt}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=1.0,>=Stealth]
+  % arena
+  \draw[thick,gray!60] (0,0) rectangle (9.2,4.6);
+  % linha ideal A->B
+  \draw[gray,densely dashed] (0.6,1.0) -- (8.6,3.4);
+  \node[below,gray,font=\scriptsize] at (0.6,1.0) {$A$};
+  \node[above,gray,font=\scriptsize] at (8.6,3.4) {$B$ (alvo)};
+  % obstaculo 1 com area inflada
+  \fill[brown!55] (3.0,1.6) rectangle (3.8,2.4);
+  \draw[gray!45] (2.7,1.3) rectangle (4.1,2.7);
+  \node[brown!50!black,font=\scriptsize] at (3.4,2.0) {caixa};
+  % obstaculo 2
+  \fill[brown!55] (5.6,2.4) rectangle (6.3,3.1);
+  \draw[gray!45] (5.3,2.1) rectangle (6.6,3.4);
+  % robo em WALLF (azul) contornando caixa 1
+  \fill[blue!70] (2.5,2.0) circle (0.22);
+  \draw[blue!70] (2.5,2.0) circle (0.32); % footprint/folga
+  \node[blue!60!black,font=\scriptsize,below=5pt] at (2.5,2.0) {\textsc{Wall-follow}};
+  % robo em GOAL (verde) rastreando a linha (posicao anterior, translucida)
+  \fill[green!55!black] (1.4,1.35) circle (0.20);
+  \node[green!45!black,font=\scriptsize,above=3pt] at (1.4,1.35) {\textsc{Goal}};
+  % sensores IR: livres (amarelo) e deteccao (vermelho)
+  \draw[orange!80] (2.5,2.0) -- ++(-0.55,0.55);
+  \draw[orange!80] (2.5,2.0) -- ++(-0.7,0.0);
+  \draw[red] (2.5,2.0) -- ++(0.55,0.35); % aponta p/ caixa
+  \draw[red] (2.5,2.0) -- ++(0.6,-0.1);
+  % robo final (disco amarelo) no alvo
+  \fill[yellow!85!orange] (8.6,3.4) circle (0.18);
+  \draw[->,thick] (8.6,3.4) -- ++(0.4,0.2);
+\end{tikzpicture}
+\caption{Leitura da visualização do simulador OpenGL (escala em mm). Verde: estado \textsc{Goal} (rastreio da linha $A\!\to\!B$); azul: \textsc{Wall-follow} (contorno); marrom: obstáculo com retângulo claro de área inflada pelo raio do robô; linhas laranja/vermelho: sensores IR livres ou com detecção; disco amarelo: pose final orientada no alvo. A janela e o robô físico compartilham o mesmo \texttt{controller\_core.h}.}
+\label{fig:gl}
+\end{figure}
+
+\noindent A bateria valida o núcleo de controle em condições muito mais adversas do que a missão única da Seção~\ref{sec:resultados}: o robô chega ao alvo na esmagadora maioria dos cenários de baixa e média dificuldade, e os poucos casos de colisão ou \emph{timeout} concentram-se nos mundos densamente povoados (dezenas de caixas), onde a natureza \emph{reativa} do Bug2 encontra seus limites teóricos --- exatamente o comportamento esperado e um insumo para os trabalhos futuros (Seção~\ref{sec:conclusao}).
+
+% =====================================================================
 \section{Evolução para o Robô Físico Khepera~IV}\label{sec:real}
 % =====================================================================
 Esta seção documenta a \emph{evolução pós-entrega} do trabalho: a migração do controlador da simulação para o \textbf{Khepera~IV físico} do CETELI e a implementação de vários dos itens elencados como trabalhos futuros --- notadamente a troca do GPS por \emph{odometria} (item~i) e o acréscimo de uma \emph{camada deliberativa com mapeamento e planejamento global $A^\star$} (item~iv). O código correspondente vive em \texttt{khepera\_real/patrulha/main.c} e em uma interface web de operação (\texttt{interface/}).
@@ -441,12 +599,14 @@ Longe da linha ($|d_\ell|$ grande) o rumo tende à \emph{perpendicular} que reap
 Realiza-se aqui o trabalho futuro~(iv). Enquanto o robô anda, a interface constrói uma \textbf{grade de ocupação} a partir da telemetria (pose + sensores frontais), com células \texttt{free}, \texttt{visited} e \texttt{occupied}. Sobre essa grade roda um \textbf{$A^\star$} 8-conexo \cite{hart1968astar} (\texttt{interface/planner.py}): as células ocupadas são \emph{dilatadas} pelo raio do robô (espaço de configuração), o não observado é tratado como livre (otimista, pois o Bug2 reativo cobre o imprevisto), e o caminho é simplificado por \emph{linha-de-visada} em poucos \emph{waypoints}. O robô os percorre em um \textbf{modo missão} (\texttt{--mission}) que recebe metas \texttt{goto X Y} pela serial mantendo a \emph{odometria contínua} entre trechos. Persiste a limitação de \textbf{referencial}: como a odometria reinicia a cada missão e deriva, mapa e alvo só são coerentes no mesmo referencial --- uma localização persistente (item de trabalho futuro remanescente) seria necessária para reuso entre sessões.
 
 \subsection{Geração automática de mapa e interface de operação}
-Um modo de \textbf{mapeamento automático} (\texttt{--slow}) leva o robô de $A$ a $B$ em \emph{meia velocidade}, contornando os obstáculos devagar para amostrar melhor, e salva o mapa ao final. Toda a operação ocorre por uma \textbf{interface web} (Flask) que conecta ao robô por USB (console serial) ou Wi-Fi/SSH, faz \emph{deploy} e recompilação do \texttt{main.c} no próprio robô, expõe telemetria, controle manual, mapeamento e os fluxos acima. Do ponto de vista de \textbf{tempo real}, o laço de controle embarcado permanece uma tarefa periódica (período nominal de $40$~ms), preservando o modelo discutido na Seção~\ref{sec:fund}.
+Um modo de \textbf{mapeamento automático} (\texttt{--slow}) leva o robô de $A$ a $B$ em \emph{meia velocidade}, contornando os obstáculos devagar para amostrar melhor, e salva o mapa ao final. Além dele, o \texttt{main.c} expõe os modos \texttt{--mission} (recebe \emph{waypoints} \texttt{goto X Y} pela serial, mantendo a odometria contínua entre trechos, usado pelo planejador $A^\star$), \texttt{--loop} (vai-e-volta $A\leftrightarrow B$ para demonstração), \texttt{--teleop} (controle manual com \emph{watchdog} de segurança que para os motores após $0{,}8$~s sem comando) e \texttt{--diag} (leitura de sensores e encoders sem mover).
+
+Toda a operação ocorre por uma \textbf{interface web} local (Flask, \texttt{interface/app.py}) que serve um painel em \texttt{http://localhost:8340} e conecta ao robô por \textbf{USB} (console serial) ou \textbf{Wi-Fi/SSH}, com suporte multiusuário e elevação automática a \emph{root} via \texttt{sudo}. A interface (i) faz \emph{deploy} do \texttt{main.c} ao robô, \emph{recompila} no próprio robô (gcc + \emph{khepera4toolbox}) e edita os \texttt{\#define} de parâmetro permitidos; (ii) exibe \emph{telemetria} ao vivo e oferece \emph{controle manual} tipo carrinho; (iii) constrói \emph{mapas} em grade/grafo, dispara o mapeamento automático $A\!\to\!B$ e a \emph{navegação por $A^\star$} sobre o mapa; e (iv) integra o \emph{painel de simulação OpenGL} (Seção~\ref{sec:sim1000}), gerando o JSON de mundos, rodando o \emph{batch} e resumindo chegadas, falhas e \emph{timeouts}. Também configura a rede Wi-Fi do robô e torna o servidor acessível na rede local. Do ponto de vista de \textbf{tempo real}, o laço de controle embarcado permanece uma tarefa periódica (período nominal de $40$~ms), preservando o modelo discutido na Seção~\ref{sec:fund}.
 
 % =====================================================================
 \section{Conclusão e Trabalhos Futuros}\label{sec:conclusao}
 % =====================================================================
-Apresentou-se um controlador de navegação ponto-a-ponto com desvio de obstáculos para o Khepera~IV em ambiente Webots, fundamentado na literatura clássica de robótica móvel e validado com dados reais de execução. A arquitetura híbrida arbitrada por máquina de estados finitos, aliada à calibração empírica do sensoriamento, conduziu o robô ao alvo de forma livre de colisões em $19{,}3$~s, reduzindo a distância de $2{,}83$~m a menos de $0{,}07$~m. O processo de depuração baseado em telemetria mostrou-se tão instrutivo quanto o resultado, evidenciando os fenômenos de mínimo local e de descalibração sensorial. A Seção~\ref{sec:real} documentou ainda a evolução para o \textbf{robô físico}, na qual vários dos trabalhos futuros abaixo já foram concretizados: odometria, rastreamento de linha por ponto de controle virtual e uma camada deliberativa de mapeamento com planejamento $A^\star$.
+Apresentou-se um controlador de navegação ponto-a-ponto com desvio de obstáculos para o Khepera~IV em ambiente Webots, fundamentado na literatura clássica de robótica móvel e validado com dados reais de execução. A arquitetura híbrida arbitrada por máquina de estados finitos, aliada à calibração empírica do sensoriamento, conduziu o robô ao alvo de forma livre de colisões em $19{,}3$~s, reduzindo a distância de $2{,}83$~m a menos de $0{,}07$~m. O processo de depuração baseado em telemetria mostrou-se tão instrutivo quanto o resultado, evidenciando os fenômenos de mínimo local e de descalibração sensorial. A Seção~\ref{sec:vv} apresentou a \textbf{verificação e validação} do software: uma campanha de seis casos de teste (todos aprovados após correção dos defeitos) e, sobretudo, uma \textbf{bateria de $1000$ cenários} de dificuldade progressiva exercitada por um simulador OpenGL que reutiliza o próprio núcleo de controle do robô físico. A Seção~\ref{sec:real} documentou ainda a evolução para o \textbf{robô físico}, na qual vários dos trabalhos futuros abaixo já foram concretizados: odometria, algoritmo Bug2, rastreamento de linha por ponto de controle virtual, uma camada deliberativa de mapeamento com planejamento $A^\star$ e uma interface web de operação. Todo o trabalho foi produzido por uma equipe de seis integrantes com o conjunto completo de artefatos de engenharia de software (Seção~\ref{sec:equipe}).
 
 Como trabalhos futuros, propõem-se: (i) substituir o GPS por \emph{odometria} via encoders, aproximando-se do robô físico do CETELI e expondo o problema de deriva; (ii) incorporar os sensores ultrassônicos como ``antecipação'' de longo alcance, suavizando o desvio; (iii) adotar métodos reativos mais robustos como VFH \cite{borenstein1991vfh} ou DWA \cite{fox1997dwa}; e (iv) acrescentar uma camada deliberativa com mapeamento e planejamento global ($A^\star$/RRT) para ambientes que exijam completude. Por fim, recomenda-se a análise formal de escalonabilidade do laço de controle sob o modelo de tarefas periódicas \cite{liu1973}, fechando a ponte com a teoria de sistemas de tempo real.
 
@@ -472,8 +632,24 @@ Como trabalhos futuros, propõem-se: (i) substituir o GPS por \emph{odometria} v
 
 % =====================================================================
 \appendix
-\section{Código-fonte completo do controlador}\label{ap:codigo}
-A listagem a seguir reproduz, na íntegra, o controlador \texttt{goto\_avoid.c}.
+\section{Código-fonte do controlador de simulação (Webots)}\label{ap:codigo}
+A listagem a seguir reproduz, na íntegra, o controlador de simulação \texttt{goto\_avoid.c}.
 \lstinputlisting[style=c]{../controllers/goto_avoid/goto_avoid.c}
+
+\section{Núcleo de controle do robô físico (Bug2 + ponto-P)}\label{ap:core}
+Parâmetros compartilhados (\texttt{controller\_config.h}) e a máquina de estados \textsc{Goal}/\textsc{Wall-follow}/\textsc{Beirada} (\texttt{controller\_core.h}), reutilizada tanto pelo robô físico quanto pelo simulador OpenGL.
+\lstinputlisting[style=c]{../khepera_real/patrulha/controller_config.h}
+\lstinputlisting[style=c]{../khepera_real/patrulha/controller_core.h}
+
+\section{Programa principal do robô físico}\label{ap:main}
+Laço embarcado com odometria, modos de operação (missão, \emph{loop}, \emph{teleop}, diagnóstico) e integração com a interface web (\texttt{khepera\_real/patrulha/main.c}).
+\lstinputlisting[style=c]{../khepera_real/patrulha/main.c}
+
+\section{Planejador global $A^\star$}\label{ap:planner}
+Planejamento sobre a grade de ocupação, com dilatação pelo raio do robô e simplificação por linha-de-visada (\texttt{interface/planner.py}).
+\lstinputlisting[style=py]{../interface/planner.py}
+
+\section{Demais componentes do repositório}\label{ap:repo}
+Por concisão, não se reproduzem aqui, na íntegra, os componentes de \emph{ferramental} do projeto, disponíveis no repositório: o simulador visual OpenGL e o gerador da bateria de $1000$ mundos (\texttt{tools/sim\_khepera/khepera\_gl.c}, \texttt{generate\_worlds.py}, \texttt{worlds\_1000.json}); a interface web de operação (\texttt{interface/app.py}, \texttt{interface/static/index.html}); o mundo do Webots (\texttt{worlds/first.wbt}); e os documentos de engenharia em \LaTeX{} (\texttt{entregaveis/}: plano de projeto, análise de requisitos, arquitetura, plano e protocolo de testes, código-fonte e apresentação final).
 
 \end{document}
