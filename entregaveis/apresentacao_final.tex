@@ -184,13 +184,58 @@ Obstáculos & 5 \\
 \end{frame}
 
 % ---------------------------------------------------------------
+\section{Verificação e Validação}
+\begin{frame}{Verificação e validação}
+\begin{columns}[T]
+\column{0.52\textwidth}
+\textbf{Casos de teste (Webots)} --- 6/6 \textbf{PASSOU}
+\begin{itemize}\scriptsize
+  \item CT-01 caminho livre \hfill \textbf{ok}
+  \item CT-02 desvio de obstáculo \hfill \textbf{ok}
+  \item CT-03 missão no \emph{slalom} \hfill \textbf{ok}
+  \item CT-04 escape de mínimo local \hfill \textbf{ok}
+  \item CT-05 período de 16~ms \hfill \textbf{ok}
+  \item CT-06 telemetria e calibração \hfill \textbf{ok}
+\end{itemize}
+\scriptsize 3 defeitos diagnosticados por telemetria e corrigidos.
+\column{0.48\textwidth}
+\begin{block}{Bateria de 1000 mundos (OpenGL)}
+\scriptsize O simulador \textbf{reusa o mesmo \texttt{controller\_core.h}} do robô físico. 1000 cenários de dificuldade progressiva (até 33 caixas), \emph{seed} fixa. Desfecho: \textsc{Arrived} / \textsc{Collision} / \textsc{Timeout}.
+\end{block}
+\scriptsize Chega na maioria; falhas concentram-se nos mundos densos (limite teórico do Bug2 reativo).
+\end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
+\section{Evolução: Robô Físico}
+\begin{frame}{Evolução para o Khepera~IV físico}
+\begin{columns}[T]
+\column{0.54\textwidth}
+\begin{itemize}\small
+  \item \textbf{Odometria} (encoders: 147,4 pulsos/mm; base 105,4~mm) no lugar do GPS.
+  \item \textbf{Bug2} canônico: segue a linha $A\!\to\!B$ e larga a parede ao \emph{recruzá-la mais perto de $B$}.
+  \item \textbf{Ponto de controle virtual (ponto-P):} volta ao eixo $A\!\to\!B$ após o contorno (PI + anti-windup).
+  \item \textbf{Camada deliberativa:} mapa de ocupação + planejamento global \textbf{$A^\star$}.
+\end{itemize}
+\column{0.46\textwidth}
+\begin{block}{Interface web (Flask)}
+\scriptsize Conecta por USB/Wi-Fi; \emph{deploy}, recompilação e ajuste de parâmetros no robô; telemetria; teleop; mapeamento; navegação por $A^\star$; painel do simulador OpenGL.
+\end{block}
+\scriptsize Laço embarcado periódico ($\approx$40~ms) --- tarefa de tempo real.
+\end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
 \section{Conclusão}
 \begin{frame}{Conclusão e trabalhos futuros}
 \begin{block}{Conclusão}
-Arquitetura híbrida (FSM) + calibração empírica $\Rightarrow$ alvo atingido sem colisões em 19,3~s, respeitando o laço de tempo real. Depuração guiada por telemetria foi decisiva.
+Arquitetura híbrida (FSM) + calibração empírica $\Rightarrow$ alvo atingido sem colisões em 19,3~s, respeitando o laço de tempo real. Depuração guiada por telemetria foi decisiva. Validado em campanha de testes e em \textbf{1000 cenários}; transferido para o \textbf{robô físico}.
 \end{block}
-\begin{block}{Trabalhos futuros}
-Odometria (robô real) $\bullet$ ultrassom (antecipação) $\bullet$ VFH/DWA $\bullet$ mapa + $A^\star$ (completude) $\bullet$ análise formal de escalonabilidade (RMS).
+\begin{block}{Já concretizado (era ``trabalho futuro'')}
+Odometria \& Bug2 (robô real) $\bullet$ rastreamento por ponto-P $\bullet$ mapa + $A^\star$ $\bullet$ interface web.
+\end{block}
+\begin{block}{Trabalhos futuros remanescentes}
+Ultrassom (antecipação) $\bullet$ VFH/DWA $\bullet$ localização persistente $\bullet$ análise formal de escalonabilidade (RMS).
 \end{block}
 \end{frame}
 
