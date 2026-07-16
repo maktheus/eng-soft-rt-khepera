@@ -55,6 +55,7 @@ SIM_BUILD = os.path.join(SIM_DIR, "build.ps1")
 SIM_WORLD_DEFAULT = os.path.join(SIM_DIR, "worlds_1000.json")
 SIM_OUT_DIR = os.path.join(SIM_DIR, "out_gl")
 SIM_SELECTED = {"worlds": SIM_WORLD_DEFAULT, "out_dir": SIM_OUT_DIR}
+MAX_MISSION_TARGET_MM = 10000.0
 REMOTE_DIR = "/home/root/khepera4toolbox/app/patrulha"
 BUILD_CMD = (
     f"cd {REMOTE_DIR} && gcc -Wall "
@@ -68,17 +69,39 @@ BUILD_CMD = (
 
 # parametros de compilacao expostos na UI (whitelist p/ o sed)
 DEFINES = [
-    "SPEED", "KP_HEAD", "HEAD_SLOW", "IR_BASE", "FRONT_SPAN", "FRONT_BLOCK",
-    "FRONT_CRIT", "FRONT_CLEAR", "WALL_TARGET", "KP_WALL", "ARRIVE_MM",
-    "CLIFF_THR", "LINE_EPS", "PROGRESS_MM", "WALL_LOST", "WALL_MIN_MM",
-    "WHEELBASE_MM", "BATT_LOW_MV",
+    "SPEED", "SLOW_SPEED", "WHEELBASE_MM", "DRIVE_DIFF_SIGN", "BATT_LOW_MV",
+    "ARRIVE_MM", "CLIFF_THR", "CLIFF_CONFIRM_TICKS", "DIFF_MAX",
+    "IR_NEAR_RAW", "IR_CONTACT_RAW", "IR_HARD_CONTACT_RAW", "IR_CLEAR_RAW",
+    "IR_SIDE_BIAS_RAW", "CONTACT_CONFIRM_TICKS",
+    "GOAL_FWD", "GOAL_FWD_MIN", "GOAL_KP_HEAD", "GOAL_DIFF_MAX",
+    "GOAL_DEADBAND_RAD",
+    "GOAL_SLOW_ANGLE_RAD",
+    "BACKOFF_MM", "BACKOFF_FWD", "BACKOFF_TIMEOUT_S",
+    "TANGENT_ANGLE_RAD", "TURN_TOL_RAD", "TURN_FALLBACK_RAD", "TURN_FWD",
+    "TURN_KP_HEAD", "TURN_DIFF_MAX",
+    "TURN_TIMEOUT_S", "TURN_ROTATION_LIMIT_RAD",
+    "BYPASS_BASE_MM", "BYPASS_GROW_MM", "BYPASS_MAX_SEGMENT_MM",
+    "BYPASS_FWD", "BYPASS_KP_HEAD", "BYPASS_DIFF_MAX", "BYPASS_INWARD_RAD",
+    "BYPASS_AWAY_RAD", "BYPASS_TOUCH_SCALE",
+    "PROBE_CLEAR_MM", "PROBE_FWD", "PROBE_TIMEOUT_S", "PROGRESS_MM",
+    "CONTACT_MAP_CAP", "CONTACT_MAP_MERGE_MM", "LOOP_RADIUS_MM",
+    "SIDE_STALL_CONTACTS", "SIDE_LOOP_CONTACTS", "LATERAL_PROGRESS_STEP_MM",
+    "STUCK_TIMEOUT_S",
+    "MOTION_EPS_MM", "FWD_SLEW_PER_S", "DIFF_SLEW_PER_S",
+    "SIM_IR_FREE_RAW", "SIM_IR_RANGE_MM", "SIM_IR_EXCESS_MAX",
 ]
-MAIN_DEFINES = {"SPEED", "WHEELBASE_MM", "BATT_LOW_MV"}
+MAIN_DEFINES = {"SPEED", "SLOW_SPEED", "WHEELBASE_MM", "DRIVE_DIFF_SIGN", "BATT_LOW_MV"}
 
 TELEM_RE = re.compile(
-    r"\[(GOAL|WALLF)(?:-([ED]))?\s*\]\s*pose=\((-?\d+),(-?\d+),(-?\d+)d\)\s*"
-    r"d_goal=(-?\d+)\s*d_line=([+-]?\d+)\s*herr=([+-]?\d+)d\s*\|\s*"
-    r"F/FL/FR=(\d+)/(\d+)/(\d+)\s*\|\s*chao=(-?\d+)\s*bat=(\d+)mV")
+    r"\[(?P<state>[A-Z]+(?:-[A-Z]+)*)-(?P<side>[ED])\]\s*"
+    r"pose=\((?P<x>-?\d+),(?P<y>-?\d+),(?P<th>-?\d+)d\)\s*"
+    r"d_goal=(?P<d_goal>-?\d+)\s*d_line=(?P<d_line>[+-]?\d+)\s*"
+    r"(?:lat=(?P<lat>[+-]?\d+)\s*)?"
+    r"(?:alvo=(?P<target>[+-]?\d+)d\s*)?herr=(?P<herr>[+-]?\d+)d\s*"
+    r"(?:cmd=\([+-]?\d+(?:\.\d+)?,[+-]?\d+(?:\.\d+)?\)\s*)?\|\s*"
+    r"F/FL/FR=(?P<F>\d+)/(?P<FL>\d+)/(?P<FR>\d+)\s*"
+    r"(?:L/R=(?P<L>\d+)/(?P<R>\d+)\s*)?\|\s*"
+    r"chao=(?P<chao>-?\d+)\s*bat=(?P<bat>\d+)mV")
 BEIRADA_RE = re.compile(r"\[BEIRADA\]\s*chao=(-?\d+)")
 DIAG_RE = re.compile(
     r"IR\[BL L FL F FR R BR B\]=(\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+)"
@@ -775,7 +798,7 @@ class RobotLink:
         self.scan = ""                  # janela de busca p/ wait_for
         self.telem = {}
         self.trail = []
-        self.goal = {"x": 700.0, "y": 0.0}
+        self.goal = {"x": 7000.0, "y": 0.0}
         self.running = False
         self.manual = False
         self.teleop_ready = False
@@ -1005,15 +1028,22 @@ class RobotLink:
     def _parse(self, line):
         m = TELEM_RE.search(line)
         if m:
-            st = m.group(1) + ("-" + m.group(2) if m.group(2) else "")
+            values = m.groupdict()
+            st = values["state"] + ("-" + values["side"] if values["side"] else "")
             t = {
                 "state": st,
-                "x": int(m.group(3)), "y": int(m.group(4)), "th": int(m.group(5)),
-                "d_goal": int(m.group(6)), "d_line": int(m.group(7)),
-                "herr": int(m.group(8)),
-                "F": int(m.group(9)), "FL": int(m.group(10)), "FR": int(m.group(11)),
-                "chao": int(m.group(12)), "bat": int(m.group(13)),
+                "x": int(values["x"]), "y": int(values["y"]), "th": int(values["th"]),
+                "d_goal": int(values["d_goal"]), "d_line": int(values["d_line"]),
+                "herr": int(values["herr"]),
+                "F": int(values["F"]), "FL": int(values["FL"]), "FR": int(values["FR"]),
+                "chao": int(values["chao"]), "bat": int(values["bat"]),
             }
+            if values["lat"] is not None:
+                t["lateral_progress"] = int(values["lat"])
+            if values["target"] is not None:
+                t["heading_target"] = int(values["target"])
+            if values["L"] is not None:
+                t.update({"L": int(values["L"]), "R": int(values["R"])})
             with self.clock:
                 self.telem.update(t)
                 p = self.trail[-1] if self.trail else None
@@ -1095,7 +1125,7 @@ class RobotLink:
             self.scan = ""
 
     # ---------------- acoes ----------------
-    def run(self, gx, gy, trim, loop, diag, duration):
+    def run(self, gx, gy, trim, loop, diag, duration, slow=False):
         with self.clock:
             self.trail = []
             self.arrived = False
@@ -1106,7 +1136,8 @@ class RobotLink:
         if diag:
             args = " --diag"
         else:
-            args = f" --gx {gx:g} --gy {gy:g} -t {trim:g}" + (" --loop" if loop else "")
+            args = (" --slow" if slow else "")
+            args += f" --gx {gx:g} --gy {gy:g} -t {trim:g}" + (" --loop" if loop else "")
         self.running = True
         self.run_started = time.time()
         self.cmd(f"cd {REMOTE_DIR} && {prog}{args}")
@@ -1201,7 +1232,7 @@ class RobotLink:
         self.running = True
         self.manual = False
         self.scan_reset()
-        self.cmd(f"cd {REMOTE_DIR} && ./patrulha --mission")
+        self.cmd(f"cd {REMOTE_DIR} && ./patrulha --mission --slow")
         if not self.wait_for(r"aguardando 'goto", 10):
             self.job.update(status="error", detail="modo missao nao iniciou")
             self.running = False
@@ -1287,6 +1318,18 @@ class RobotLink:
 
     def job_wifi_setup(self, ssid, password, iface):
         q_ssid = shlex.quote(ssid)
+        dhcp_done = "__WIFI_DHCP_DONE__"
+        assoc_done = "__WIFI_ASSOC_DONE__"
+
+        self.job["detail"] = "limpando DHCP antigo..."
+        try:
+            self._write("\x03")
+        except Exception:
+            pass
+        time.sleep(0.3)
+        self.cmd(f"killall udhcpc 2>/dev/null; ip link set {iface} up 2>/dev/null || ifconfig {iface} up", echo=False)
+        time.sleep(0.5)
+
         self.job["detail"] = "gravando wpa_supplicant.conf..."
         if password:
             self.cmd(f"wpa_passphrase {q_ssid} {shlex.quote(password)} > /tmp/wpa.conf", echo=False)
@@ -1305,21 +1348,56 @@ class RobotLink:
         self.cmd(f"wpa_supplicant -B -i {iface} -c /tmp/wpa.conf -D nl80211,wext", echo=False)
         time.sleep(2.0)
 
-        self.job["detail"] = "obtendo IP (udhcpc)..."
+        self.job["detail"] = "aguardando associacao Wi-Fi..."
         self.scan_reset()
-        self.cmd(f"udhcpc -i {iface}", echo=False)
-        m = self.wait_for(r"\binet\b[^\d]*(\d{1,3}(?:\.\d{1,3}){3})", 20)
-        if not m:
-            self.scan_reset()
-            self.cmd(f"ip addr show {iface} | grep inet", echo=False)
-            m = self.wait_for(r"inet\s+(\d{1,3}(?:\.\d{1,3}){3})", 8)
+        self.cmd(
+            "for i in 1 2 3 4 5 6; do "
+            f"(wpa_cli -i {iface} status 2>/dev/null | grep -E '^(wpa_state|ssid|ip_address|key_mgmt|bssid|freq)=') || true; "
+            f"(iwconfig {iface} 2>/dev/null | grep -E 'ESSID|Access Point') || true; "
+            "sleep 1; "
+            f"done; echo {assoc_done}",
+            echo=False,
+        )
+        self.wait_for(assoc_done, 10)
+        with self.clock:
+            assoc_scan = self.scan
+        associated = (
+            "wpa_state=COMPLETED" in assoc_scan
+            or (f'ESSID:"{ssid}"' in assoc_scan and "Not-Associated" not in assoc_scan)
+        )
+
+        self.job["detail"] = "obtendo IP (DHCP)..."
+        self.scan_reset()
+        self.cmd(
+            f"timeout 35 sh -c 'udhcpc -n -q -t 10 -T 3 -i {iface}; "
+            f"ip addr show {iface} | grep \"inet \"'; echo {dhcp_done}",
+            echo=False,
+        )
+        done = self.wait_for(dhcp_done, 40)
+        if not done:
+            self.cmd("killall udhcpc 2>/dev/null", echo=False)
+        with self.clock:
+            dhcp_scan = self.scan
+        m = (
+            re.search(r"Lease of\s+(\d{1,3}(?:\.\d{1,3}){3})\s+obtained", dhcp_scan)
+            or re.search(r"inet\s+(\d{1,3}(?:\.\d{1,3}){3})", dhcp_scan)
+        )
 
         if m:
             self.wifi_ip = m.group(1)
             self.job.update(status="ok", detail=f"conectado, IP {self.wifi_ip}")
+        elif associated:
+            self.wifi_ip = None
+            self.job.update(
+                status="error",
+                detail="Wi-Fi associou, mas DHCP nao entregou IP -- confira roteador/faixa DHCP/sinal",
+            )
         else:
             self.wifi_ip = None
-            self.job.update(status="error", detail="sem IP -- confira SSID/senha e tente de novo")
+            self.job.update(
+                status="error",
+                detail="nao associou ao Wi-Fi -- confira SSID exato, senha, rede 2.4 GHz e WPA2 (sem WPA3-only)",
+            )
 
 
 link = RobotLink()
@@ -1457,6 +1535,897 @@ def _latest_grid():
     return None, None
 
 
+def _safe_map_session_id(value):
+    sid = (value or "").strip()
+    if not re.match(r"^[A-Za-z0-9_.-]{1,80}$", sid):
+        raise ValueError("sessao de mapa invalida")
+    return sid
+
+
+def _map_session_dir(session_id):
+    sid = _safe_map_session_id(session_id)
+    path = os.path.abspath(os.path.join(MAPS_DIR, sid))
+    maps_root = os.path.abspath(MAPS_DIR)
+    if path != maps_root and not path.startswith(maps_root + os.sep):
+        raise ValueError("sessao de mapa precisa ficar em maps/")
+    return path
+
+
+def _normalize_editor_grid(raw):
+    try:
+        resolution = float(raw.get("resolution_mm", 50.0))
+    except (TypeError, ValueError):
+        resolution = 50.0
+    resolution = max(20.0, min(200.0, resolution))
+
+    cells = []
+    allowed = {"free", "visited", "occupied"}
+    seen = set()
+    for cell in raw.get("cells", []):
+        try:
+            i = int(cell["i"])
+            j = int(cell["j"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        state = cell.get("state", "occupied")
+        if state not in allowed:
+            continue
+        key = (i, j)
+        if key in seen:
+            continue
+        seen.add(key)
+        x = round((i + 0.5) * resolution, 1)
+        y = round((j + 0.5) * resolution, 1)
+        cells.append({
+            "i": i,
+            "j": j,
+            "x": x,
+            "y": y,
+            "state": state,
+            "free": 1.0 if state in ("free", "visited") else 0.0,
+            "occupied": 1.0 if state == "occupied" else 0.0,
+            "visited": 1.0 if state == "visited" else 0.0,
+        })
+    cells.sort(key=lambda c: (c["i"], c["j"]))
+
+    grid = {
+        "resolution_mm": resolution,
+        "cells": cells,
+    }
+    for key in ("name", "start", "goal", "bounds"):
+        if key in raw:
+            grid[key] = raw[key]
+    return grid
+
+
+def _xy_from_payload(value, default):
+    value = value or {}
+    try:
+        return (float(value.get("x", default[0])), float(value.get("y", default[1])))
+    except (TypeError, ValueError):
+        return tuple(map(float, default))
+
+
+def _distance_from_start(start, waypoints):
+    points = [start] + list(waypoints or [])
+    distance = 0.0
+    for a, b in zip(points, points[1:]):
+        distance += math.hypot(b[0] - a[0], b[1] - a[1])
+    return distance
+
+
+def _clamp(value, lo, hi):
+    return lo if value < lo else hi if value > hi else value
+
+
+def _wrap_angle(value):
+    while value > math.pi:
+        value -= 2.0 * math.pi
+    while value < -math.pi:
+        value += 2.0 * math.pi
+    return value
+
+
+def _editor_bounds_for_sim(grid, start, goal):
+    bounds = grid.get("bounds")
+    if isinstance(bounds, dict):
+        try:
+            return {
+                "minX": float(bounds["minX"]),
+                "maxX": float(bounds["maxX"]),
+                "minY": float(bounds["minY"]),
+                "maxY": float(bounds["maxY"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            pass
+    if isinstance(bounds, list) and len(bounds) >= 4:
+        try:
+            return {"minX": float(bounds[0]), "maxX": float(bounds[1]), "minY": float(bounds[2]), "maxY": float(bounds[3])}
+        except (TypeError, ValueError):
+            pass
+    r = float(grid.get("resolution_mm", 50.0))
+    xs = [start[0], goal[0]]
+    ys = [start[1], goal[1]]
+    for cell in grid.get("cells", []):
+        xs.extend([cell["i"] * r, (cell["i"] + 1) * r])
+        ys.extend([cell["j"] * r, (cell["j"] + 1) * r])
+    margin = max(500.0, r * 10.0)
+    return {
+        "minX": math.floor((min(xs) - margin) / r) * r,
+        "maxX": math.ceil((max(xs) + margin) / r) * r,
+        "minY": math.floor((min(ys) - margin) / r) * r,
+        "maxY": math.ceil((max(ys) + margin) / r) * r,
+    }
+
+
+def _editor_obstacle_rects(grid):
+    r = float(grid.get("resolution_mm", 50.0))
+    rects = []
+    for cell in grid.get("cells", []):
+        if cell.get("state") != "occupied":
+            continue
+        i = int(cell["i"])
+        j = int(cell["j"])
+        rects.append((i * r, j * r, r, r))
+    return rects
+
+
+def _rect_dist(rect, x, y):
+    rx, ry, rw, rh = rect
+    dx = max(rx - x, 0.0, x - (rx + rw))
+    dy = max(ry - y, 0.0, y - (ry + rh))
+    return math.hypot(dx, dy)
+
+
+def _point_in_rect(rect, x, y):
+    rx, ry, rw, rh = rect
+    return rx <= x <= rx + rw and ry <= y <= ry + rh
+
+
+def _sim_cast_sensor_ray(rects, bounds, x, y, th, rel, max_mm=120.0):
+    angle = th + rel
+    step = 5.0
+    d = 0.0
+    while d <= max_mm:
+        px = x + math.cos(angle) * d
+        py = y + math.sin(angle) * d
+        if px < bounds["minX"] or px > bounds["maxX"] or py < bounds["minY"] or py > bounds["maxY"]:
+            return d
+        for rect in rects:
+            if _point_in_rect(rect, px, py):
+                return d
+        d += step
+    return max_mm
+
+
+def _sim_cast_sensor(rects, bounds, x, y, th, rel, max_mm=120.0):
+    aperture = math.radians(14.0)
+    return min(
+        _sim_cast_sensor_ray(rects, bounds, x, y, th, rel, max_mm),
+        _sim_cast_sensor_ray(rects, bounds, x, y, th, rel + aperture, max_mm),
+        _sim_cast_sensor_ray(rects, bounds, x, y, th, rel - aperture, max_mm),
+    )
+
+
+def _sim_tactile_raws(rects, x, y, th, cfg, robot_radius=70.0):
+    free = int(cfg["SIM_IR_FREE_RAW"])
+    raws = {"F": free, "FL": free, "FR": free, "L": free, "R": free}
+    angles = {
+        "F": 0.0,
+        "FL": math.radians(35.0),
+        "FR": math.radians(-35.0),
+        "L": math.radians(80.0),
+        "R": math.radians(-80.0),
+    }
+    tactile_range = max(1.0, cfg["SIM_IR_RANGE_MM"] - robot_radius)
+    for rx, ry, rw, rh in rects:
+        qx = _clamp(x, rx, rx + rw)
+        qy = _clamp(y, ry, ry + rh)
+        center_distance = math.hypot(qx - x, qy - y)
+        gap = max(0.0, center_distance - robot_radius)
+        if gap >= tactile_range or center_distance <= 1e-6:
+            continue
+        rel = _wrap_angle(math.atan2(qy - y, qx - x) - th)
+        name, error = min(
+            ((name, abs(_wrap_angle(rel - angle))) for name, angle in angles.items()),
+            key=lambda item: item[1],
+        )
+        if error > math.radians(48.0):
+            continue
+        raw = free + int(_clamp(
+            cfg["SIM_IR_EXCESS_MAX"] * (1.0 - gap / tactile_range),
+            0.0,
+            cfg["SIM_IR_EXCESS_MAX"],
+        ))
+        raws[name] = max(raws[name], raw)
+    return raws
+
+
+def _reactive_config():
+    cfg = {
+        "ARRIVE_MM": 90.0,
+        "DIFF_MAX": 0.55,
+        "CLIFF_CONFIRM_TICKS": 3.0,
+        "IR_NEAR_RAW": 55.0,
+        "IR_CONTACT_RAW": 180.0,
+        "IR_HARD_CONTACT_RAW": 400.0,
+        "IR_CLEAR_RAW": 40.0,
+        "IR_SIDE_BIAS_RAW": 35.0,
+        "CONTACT_CONFIRM_TICKS": 3.0,
+        "GOAL_FWD": 0.32,
+        "GOAL_FWD_MIN": 0.13,
+        "GOAL_KP_HEAD": 0.22,
+        "GOAL_DIFF_MAX": 0.08,
+        "GOAL_DEADBAND_RAD": 0.10,
+        "GOAL_SLOW_ANGLE_RAD": 0.80,
+        "BACKOFF_MM": 85.0,
+        "BACKOFF_FWD": -0.22,
+        "BACKOFF_TIMEOUT_S": 2.0,
+        "TANGENT_ANGLE_RAD": 1.40,
+        "TURN_TOL_RAD": 0.14,
+        "TURN_FALLBACK_RAD": 0.32,
+        "TURN_FWD": 0.14,
+        "TURN_KP_HEAD": 0.45,
+        "TURN_DIFF_MAX": 0.18,
+        "TURN_TIMEOUT_S": 4.0,
+        "TURN_ROTATION_LIMIT_RAD": 2.60,
+        "BYPASS_BASE_MM": 320.0,
+        "BYPASS_GROW_MM": 140.0,
+        "BYPASS_MAX_SEGMENT_MM": 700.0,
+        "BYPASS_FWD": 0.24,
+        "BYPASS_KP_HEAD": 0.65,
+        "BYPASS_DIFF_MAX": 0.20,
+        "BYPASS_INWARD_RAD": 0.06,
+        "BYPASS_AWAY_RAD": 0.65,
+        "BYPASS_TOUCH_SCALE": 0.52,
+        "PROBE_CLEAR_MM": 280.0,
+        "PROBE_FWD": 0.22,
+        "PROBE_TIMEOUT_S": 6.0,
+        "PROGRESS_MM": 80.0,
+        "CONTACT_MAP_CAP": 48.0,
+        "CONTACT_MAP_MERGE_MM": 90.0,
+        "LOOP_RADIUS_MM": 150.0,
+        "SIDE_STALL_CONTACTS": 4.0,
+        "SIDE_LOOP_CONTACTS": 3.0,
+        "LATERAL_PROGRESS_STEP_MM": 120.0,
+        "STUCK_TIMEOUT_S": 1.8,
+        "MOTION_EPS_MM": 0.30,
+        "FWD_SLEW_PER_S": 2.8,
+        "DIFF_SLEW_PER_S": 3.8,
+        "SIM_IR_FREE_RAW": 10.0,
+        "SIM_IR_RANGE_MM": 82.0,
+        "SIM_IR_EXCESS_MAX": 900.0,
+    }
+    values = local_defines()
+    values.update(getattr(link, "overrides", {}))
+    for key in cfg:
+        if key in values:
+            try:
+                cfg[key] = float(values[key])
+            except (TypeError, ValueError):
+                pass
+    return cfg
+
+
+def _tactile_enter_state(ctrl, state, now):
+    ctrl["state"] = state
+    ctrl["state_started"] = now
+    ctrl["state_distance"] = 0.0
+    ctrl["state_rotation"] = 0.0
+    ctrl["no_motion_time"] = 0.0
+
+
+def _tactile_reset_episode(ctrl, cfg):
+    ctrl["episode_active"] = False
+    ctrl["episode_contacts"] = 0
+    ctrl["side_switches"] = 0
+    ctrl["episode_path"] = 0.0
+    ctrl["lateral_progress_mark"] = 0.0
+    ctrl["lateral_stall_contacts"] = 0
+    ctrl["loop_contacts"] = 0
+    ctrl["hit_dgoal"] = 0.0
+    ctrl["best_dgoal"] = 0.0
+    ctrl["bypass_required"] = cfg["BYPASS_BASE_MM"]
+
+
+def _tactile_slew(current, target, rate, dt):
+    step = rate * _clamp(dt, 0.0, 0.20)
+    return current + _clamp(target - current, -step, step)
+
+
+def _tactile_heading_arc(error, base_forward, kp, diff_limit, cfg):
+    forward = base_forward * _clamp(
+        1.0 - abs(error) / cfg["GOAL_SLOW_ANGLE_RAD"], 0.42, 1.0
+    )
+    forward = max(forward, cfg["GOAL_FWD_MIN"])
+    diff = _clamp(-kp * error, -diff_limit, diff_limit)
+    diff = _clamp(diff, -forward * 0.92, forward * 0.92)
+    return forward, diff
+
+
+def _tactile_lateral_progress(ctrl, x, y):
+    nx = -math.sin(ctrl["episode_heading"])
+    ny = math.cos(ctrl["episode_heading"])
+    return ctrl["bypass_side"] * (
+        (x - ctrl["hit_x"]) * nx + (y - ctrl["hit_y"]) * ny
+    )
+
+
+def _tactile_switch_side(ctrl, out, cfg):
+    ctrl["bypass_side"] *= -1
+    ctrl["preferred_side"] = ctrl["bypass_side"]
+    ctrl["side_switches"] += 1
+    ctrl["episode_contacts"] = 0
+    ctrl["episode_path"] = 0.0
+    ctrl["lateral_progress_mark"] = 0.0
+    ctrl["lateral_stall_contacts"] = 0
+    ctrl["loop_contacts"] = 0
+    ctrl["bypass_required"] = cfg["BYPASS_BASE_MM"]
+    ctrl["bypass_heading"] = _wrap_angle(
+        ctrl["episode_heading"]
+        + ctrl["bypass_side"] * cfg["TANGENT_ANGLE_RAD"]
+    )
+    ctrl["heading_target"] = ctrl["bypass_heading"]
+    out["side_switched"] = True
+
+
+def _tactile_begin_contact(ctrl, out, x, y, th, now, cfg):
+    sensor_angles = {"F": 0.0, "FL": 0.55, "FR": -0.55}
+    sensor = max(sensor_angles, key=lambda name: out[name])
+    rel = sensor_angles[sensor]
+    contact_x = x + 70.0 * math.cos(th + rel)
+    contact_y = y + 70.0 * math.sin(th + rel)
+    points = ctrl["map_points"]
+    loop_detected = any(
+        math.hypot(contact_x - px, contact_y - py) < cfg["LOOP_RADIUS_MM"]
+        for px, py in points
+    )
+    if not points or math.hypot(contact_x - points[-1][0], contact_y - points[-1][1]) >= cfg["CONTACT_MAP_MERGE_MM"]:
+        points.append((contact_x, contact_y))
+        del points[:-int(cfg["CONTACT_MAP_CAP"])]
+
+    out["contact_event"] = True
+    out["contact_x"] = contact_x
+    out["contact_y"] = contact_y
+    out["contact_index"] = len(points)
+    out["loop_detected"] = loop_detected
+
+    new_episode = not ctrl["episode_active"]
+    if new_episode:
+        ctrl["episode_active"] = True
+        ctrl["episode_contacts"] = 0
+        ctrl["side_switches"] = 0
+        ctrl["episode_path"] = 0.0
+        ctrl["lateral_progress_mark"] = 0.0
+        ctrl["lateral_stall_contacts"] = 0
+        ctrl["loop_contacts"] = 0
+        ctrl["hit_x"] = x
+        ctrl["hit_y"] = y
+        ctrl["hit_dgoal"] = out["d_goal"]
+        ctrl["best_dgoal"] = out["d_goal"]
+        ctrl["episode_heading"] = th
+        left = out["FL"] + out["L"]
+        right = out["FR"] + out["R"]
+        if left > right + cfg["IR_SIDE_BIAS_RAW"]:
+            ctrl["bypass_side"] = -1
+        elif right > left + cfg["IR_SIDE_BIAS_RAW"]:
+            ctrl["bypass_side"] = 1
+        else:
+            ctrl["bypass_side"] = ctrl["preferred_side"]
+        ctrl["bypass_heading"] = _wrap_angle(
+            ctrl["episode_heading"]
+            + ctrl["bypass_side"] * cfg["TANGENT_ANGLE_RAD"]
+        )
+        out["entered_wall"] = True
+
+    if not new_episode:
+        lateral = _tactile_lateral_progress(ctrl, x, y)
+        if lateral >= ctrl["lateral_progress_mark"] + cfg["LATERAL_PROGRESS_STEP_MM"]:
+            ctrl["lateral_progress_mark"] = lateral
+            ctrl["lateral_stall_contacts"] = 0
+        else:
+            ctrl["lateral_stall_contacts"] += 1
+        if loop_detected:
+            ctrl["loop_contacts"] += 1
+
+    ctrl["episode_contacts"] += 1
+    should_switch = (
+        ctrl["side_switches"] == 0
+        and (
+            ctrl["lateral_stall_contacts"] >= cfg["SIDE_STALL_CONTACTS"]
+            or ctrl["loop_contacts"] >= cfg["SIDE_LOOP_CONTACTS"]
+        )
+    )
+    if should_switch:
+        _tactile_switch_side(ctrl, out, cfg)
+        ctrl["episode_contacts"] = 1
+
+    ctrl["contact_heading"] = th
+    ctrl["heading_target"] = ctrl["bypass_heading"]
+    ctrl["bypass_required"] = _clamp(
+        cfg["BYPASS_BASE_MM"] + (ctrl["episode_contacts"] - 1) * cfg["BYPASS_GROW_MM"],
+        cfg["BYPASS_BASE_MM"],
+        cfg["BYPASS_MAX_SEGMENT_MM"],
+    )
+    ctrl["fwd_s"] = 0.0
+    ctrl["diff_s"] = 0.0
+    _tactile_enter_state(ctrl, "RECUO", now)
+
+
+def _reactive_step(ctrl, x, y, th, dc, dt, raws, cfg):
+    ctrl["time"] += dt
+    now = ctrl["time"]
+    state_at_start = ctrl["state"]
+    out = {name: float(raws[name]) for name in ("F", "FL", "FR", "L", "R")}
+    out.update({
+        "entered_wall": False,
+        "contact_event": False,
+        "side_switched": False,
+        "loop_detected": False,
+        "obstacle_cleared": False,
+        "blocked": False,
+    })
+    out["front_peak"] = max(out["F"], out["FL"], out["FR"])
+    out["all_peak"] = max(out["front_peak"], out["L"], out["R"])
+
+    if ctrl["last_th_valid"]:
+        dhead = abs(_wrap_angle(th - ctrl["last_th"]))
+    else:
+        dhead = 0.0
+        ctrl["last_th_valid"] = True
+    ctrl["last_th"] = th
+    ctrl["state_distance"] += abs(dc)
+    ctrl["state_rotation"] += dhead
+    if ctrl["episode_active"]:
+        ctrl["episode_path"] += abs(dc)
+
+    vx = ctrl["bx"] - ctrl["ax"]
+    vy = ctrl["by"] - ctrl["ay"]
+    vlen = max(1e-6, math.hypot(vx, vy))
+    out["d_line"] = (vx / vlen) * (y - ctrl["ay"]) - (vy / vlen) * (x - ctrl["ax"])
+    out["d_goal"] = math.hypot(ctrl["bx"] - x, ctrl["by"] - y)
+    out["herr"] = _wrap_angle(math.atan2(ctrl["by"] - y, ctrl["bx"] - x) - th)
+    if ctrl["episode_active"]:
+        out["lateral_progress"] = _tactile_lateral_progress(ctrl, x, y)
+        ctrl["best_dgoal"] = min(ctrl["best_dgoal"], out["d_goal"])
+    else:
+        out["lateral_progress"] = 0.0
+
+    if abs(dc) < cfg["MOTION_EPS_MM"] and (
+        abs(ctrl["fwd_s"]) > 0.10 or abs(ctrl["diff_s"]) > 0.10
+    ):
+        ctrl["no_motion_time"] += dt
+    else:
+        ctrl["no_motion_time"] = 0.0
+
+    contact_peak = out["front_peak"]
+    if ctrl["episode_active"] and ctrl["state"] in {"GIRO", "CONTORNO", "ALINHA", "TESTE"}:
+        expected_opposite = out["FL"] if ctrl["bypass_side"] > 0 else out["FR"]
+        contact_peak = max(out["F"], expected_opposite)
+    if contact_peak >= cfg["IR_CONTACT_RAW"]:
+        ctrl["contact_samples"] += 1
+    else:
+        ctrl["contact_samples"] = 0
+    confirmed_contact = (
+        contact_peak >= cfg["IR_HARD_CONTACT_RAW"]
+        or ctrl["contact_samples"] >= cfg["CONTACT_CONFIRM_TICKS"]
+    )
+    out["contact"] = bool(confirmed_contact)
+
+    if confirmed_contact and ctrl["state"] in {
+        "GOAL", "GIRO", "CONTORNO", "ALINHA", "TESTE"
+    }:
+        _tactile_begin_contact(ctrl, out, x, y, th, now, cfg)
+        ctrl["contact_samples"] = 0
+
+    forward = 0.0
+    diff = 0.0
+    elapsed = now - ctrl["state_started"]
+    state = ctrl["state"]
+
+    if state == "GOAL":
+        goal_error = 0.0
+        if abs(out["herr"]) > cfg["GOAL_DEADBAND_RAD"]:
+            goal_error = (
+                out["herr"]
+                - math.copysign(cfg["GOAL_DEADBAND_RAD"], out["herr"])
+            )
+        forward, diff = _tactile_heading_arc(
+            goal_error, cfg["GOAL_FWD"], cfg["GOAL_KP_HEAD"],
+            cfg["GOAL_DIFF_MAX"], cfg
+        )
+        if out["front_peak"] > cfg["IR_NEAR_RAW"]:
+            scale = _clamp(
+                (cfg["IR_CONTACT_RAW"] - out["front_peak"])
+                / (cfg["IR_CONTACT_RAW"] - cfg["IR_NEAR_RAW"]),
+                0.45,
+                1.0,
+            )
+            forward *= scale
+            diff = _clamp(diff, -forward * 0.92, forward * 0.92)
+
+    elif state == "RECUO":
+        forward = cfg["BACKOFF_FWD"]
+        if ctrl["state_distance"] >= cfg["BACKOFF_MM"] or elapsed >= cfg["BACKOFF_TIMEOUT_S"]:
+            _tactile_enter_state(ctrl, "GIRO", now)
+            forward = 0.0
+
+    elif state == "GIRO":
+        error = _wrap_angle(ctrl["heading_target"] - th)
+        forward, diff = _tactile_heading_arc(
+            error, cfg["TURN_FWD"], cfg["TURN_KP_HEAD"],
+            cfg["TURN_DIFF_MAX"], cfg
+        )
+        if abs(error) < cfg["TURN_TOL_RAD"]:
+            _tactile_enter_state(ctrl, "CONTORNO", now)
+            forward = diff = 0.0
+        elif (
+            elapsed >= cfg["TURN_TIMEOUT_S"]
+            or ctrl["state_rotation"] >= cfg["TURN_ROTATION_LIMIT_RAD"]
+        ):
+            if abs(error) <= cfg["TURN_FALLBACK_RAD"]:
+                _tactile_enter_state(ctrl, "CONTORNO", now)
+                forward = diff = 0.0
+            else:
+                _tactile_reset_episode(ctrl, cfg)
+                _tactile_enter_state(ctrl, "GOAL", now)
+                forward = diff = 0.0
+
+    elif state == "CONTORNO":
+        wall_raw = max(out["R"], out["FR"]) if ctrl["bypass_side"] > 0 else max(out["L"], out["FL"])
+        pressure = _clamp(
+            (wall_raw - cfg["IR_NEAR_RAW"])
+            / (cfg["IR_HARD_CONTACT_RAW"] - cfg["IR_NEAR_RAW"]),
+            0.0,
+            1.0,
+        )
+        target = _wrap_angle(
+            ctrl["heading_target"]
+            - ctrl["bypass_side"] * cfg["BYPASS_INWARD_RAD"]
+            + ctrl["bypass_side"] * cfg["BYPASS_AWAY_RAD"] * pressure
+        )
+        error = _wrap_angle(target - th)
+        forward, diff = _tactile_heading_arc(
+            error, cfg["BYPASS_FWD"], cfg["BYPASS_KP_HEAD"],
+            cfg["BYPASS_DIFF_MAX"], cfg
+        )
+        if wall_raw >= cfg["IR_CONTACT_RAW"]:
+            forward *= cfg["BYPASS_TOUCH_SCALE"]
+        diff = _clamp(diff, -forward * 0.92, forward * 0.92)
+        if ctrl["state_distance"] >= ctrl["bypass_required"]:
+            ctrl["heading_target"] = ctrl["episode_heading"]
+            _tactile_enter_state(ctrl, "ALINHA", now)
+            forward = diff = 0.0
+        elif ctrl["no_motion_time"] >= cfg["STUCK_TIMEOUT_S"]:
+            _tactile_reset_episode(ctrl, cfg)
+            _tactile_enter_state(ctrl, "GOAL", now)
+
+    elif state == "ALINHA":
+        wall_front = out["FR"] if ctrl["bypass_side"] > 0 else out["FL"]
+        if wall_front >= cfg["IR_CONTACT_RAW"]:
+            _tactile_reset_episode(ctrl, cfg)
+            _tactile_enter_state(ctrl, "GOAL", now)
+            forward = diff = 0.0
+            state = "GOAL"
+
+        error = _wrap_angle(ctrl["heading_target"] - th)
+        if state == "ALINHA":
+            forward, diff = _tactile_heading_arc(
+                error, cfg["TURN_FWD"], cfg["TURN_KP_HEAD"],
+                cfg["TURN_DIFF_MAX"], cfg
+            )
+            timed_out = elapsed >= cfg["TURN_TIMEOUT_S"] or ctrl["state_rotation"] >= math.pi
+            if abs(error) < cfg["TURN_TOL_RAD"] or (
+                timed_out and abs(error) <= cfg["TURN_FALLBACK_RAD"]
+            ):
+                _tactile_enter_state(ctrl, "TESTE", now)
+                forward = diff = 0.0
+            elif timed_out:
+                _tactile_reset_episode(ctrl, cfg)
+                _tactile_enter_state(ctrl, "GOAL", now)
+                forward = diff = 0.0
+
+    elif state == "TESTE":
+        error = _wrap_angle(ctrl["heading_target"] - th)
+        forward, diff = _tactile_heading_arc(
+            error, cfg["PROBE_FWD"], cfg["GOAL_KP_HEAD"],
+            cfg["GOAL_DIFF_MAX"], cfg
+        )
+        if (
+            ctrl["state_distance"] >= cfg["PROBE_CLEAR_MM"]
+            or elapsed >= cfg["PROBE_TIMEOUT_S"]
+        ):
+            _tactile_reset_episode(ctrl, cfg)
+            _tactile_enter_state(ctrl, "GOAL", now)
+            out["obstacle_cleared"] = True
+
+    elif state == "BLOQUEADO":
+        forward = diff = 0.0
+        ctrl["fwd_s"] = 0.0
+        ctrl["diff_s"] = 0.0
+        out["blocked"] = True
+
+    diff = _clamp(diff, -cfg["DIFF_MAX"], cfg["DIFF_MAX"])
+    ctrl["fwd_s"] = _tactile_slew(
+        ctrl["fwd_s"], forward, cfg["FWD_SLEW_PER_S"], dt
+    )
+    if ctrl["state"] == "RECUO":
+        ctrl["diff_s"] = 0.0
+    else:
+        ctrl["diff_s"] = _tactile_slew(
+            ctrl["diff_s"], diff, cfg["DIFF_SLEW_PER_S"], dt
+        )
+
+    out["forward"] = forward
+    out["diff"] = diff
+    out["fwd_s"] = ctrl["fwd_s"]
+    out["diff_s"] = ctrl["diff_s"]
+    out["heading_target"] = (
+        math.atan2(ctrl["by"] - y, ctrl["bx"] - x)
+        if ctrl["state"] == "GOAL"
+        else ctrl["heading_target"]
+    )
+    out["state"] = ctrl["state"]
+    out["state_changed"] = ctrl["state"] != state_at_start
+    out["bypass_side"] = ctrl["bypass_side"]
+    out["wall_left"] = ctrl["bypass_side"] < 0
+    return out
+
+
+def _simulate_editor_reactive(grid, start, goal):
+    cfg = _reactive_config()
+    rects = _editor_obstacle_rects(grid)
+    bounds = _editor_bounds_for_sim(grid, start, goal)
+    robot_radius = 70.0
+    linear_mm_s = 120.0
+    angular_rad_s = 2.35
+    dt = 0.04
+    max_time_s = 420.0
+
+    x, y, th = float(start[0]), float(start[1]), 0.0
+    ctrl = {
+        "ax": x, "ay": y, "bx": float(goal[0]), "by": float(goal[1]),
+        "state": "GOAL", "state_started": 0.0,
+        "state_distance": 0.0, "state_rotation": 0.0,
+        "time": 0.0, "last_th": 0.0, "last_th_valid": False,
+        "fwd_s": 0.0, "diff_s": 0.0,
+        "heading_target": 0.0, "contact_heading": 0.0,
+        "hit_x": x, "hit_y": y, "hit_dgoal": 0.0, "best_dgoal": 0.0,
+        "episode_path": 0.0, "lateral_progress_mark": 0.0,
+        "bypass_required": cfg["BYPASS_BASE_MM"],
+        "no_motion_time": 0.0, "bypass_side": 1, "preferred_side": 1,
+        "episode_active": False, "episode_contacts": 0, "side_switches": 0,
+        "lateral_stall_contacts": 0,
+        "loop_contacts": 0,
+        "episode_heading": 0.0, "bypass_heading": 0.0,
+        "contact_samples": 0, "map_points": [],
+    }
+    trail = [(x, y)]
+    path_mm = 0.0
+    min_goal = math.hypot(goal[0] - x, goal[1] - y)
+    final_goal = min_goal
+    wall_entries = 0
+    status = "TIMEOUT"
+    last_state = "GOAL"
+    elapsed_s = 0.0
+
+    if any(_rect_dist(rect, x, y) <= robot_radius for rect in rects):
+        return {"status": "COLLISION", "trail": trail, "distance_mm": 0.0, "time_s": 0.0, "min_goal_mm": min_goal, "final_goal_mm": final_goal, "wall_entries": 0}
+
+    steps = int(max_time_s / dt)
+    prev_x, prev_y = x, y
+    for step in range(steps):
+        t = step * dt
+        elapsed_s = t
+        final_goal = math.hypot(goal[0] - x, goal[1] - y)
+        min_goal = min(min_goal, final_goal)
+        if final_goal < cfg["ARRIVE_MM"]:
+            status = "ARRIVED"
+            break
+
+        raws = _sim_tactile_raws(rects, x, y, th, cfg, robot_radius)
+        dc = math.hypot(x - prev_x, y - prev_y)
+        out = _reactive_step(ctrl, x, y, th, dc, dt, raws, cfg)
+        if out["entered_wall"]:
+            wall_entries += 1
+        last_state = out["state"]
+        if out.get("blocked"):
+            status = "BLOCKED"
+            break
+
+        prev_x, prev_y = x, y
+        x += math.cos(th) * (out["fwd_s"] * linear_mm_s * dt)
+        y += math.sin(th) * (out["fwd_s"] * linear_mm_s * dt)
+        th = _wrap_angle(th - out["diff_s"] * angular_rad_s * dt)
+        moved = math.hypot(x - prev_x, y - prev_y)
+        path_mm += moved
+        elapsed_s = (step + 1) * dt
+
+        if x < bounds["minX"] or x > bounds["maxX"] or y < bounds["minY"] or y > bounds["maxY"]:
+            status = "COLLISION"
+            break
+        if any(_rect_dist(rect, x, y) <= robot_radius for rect in rects):
+            status = "COLLISION"
+            break
+        if step % 5 == 0 or moved > 20.0:
+            trail.append((x, y))
+    else:
+        status = "TIMEOUT"
+
+    if not trail or math.hypot(trail[-1][0] - x, trail[-1][1] - y) > 1.0:
+        trail.append((x, y))
+    if len(trail) > 1800:
+        stride = int(math.ceil(len(trail) / 1800.0))
+        trail = trail[::stride] + ([trail[-1]] if trail[-1] != trail[::stride][-1] else [])
+    final_goal = math.hypot(goal[0] - x, goal[1] - y)
+    return {
+        "status": status,
+        "trail": trail,
+        "distance_mm": path_mm,
+        "time_s": min(max_time_s, elapsed_s),
+        "min_goal_mm": min(min_goal, final_goal),
+        "final_goal_mm": final_goal,
+        "wall_entries": wall_entries,
+        "last_state": last_state,
+        "sensor_model": "tactile_local_ir",
+        "ir_range_mm": cfg["SIM_IR_RANGE_MM"],
+        "map_known_by_robot": False,
+    }
+
+
+@app.get("/api/editor/maps")
+def editor_maps():
+    maps = []
+    for item in mapper.sessions():
+        sid = item.get("session_id")
+        try:
+            path = _map_session_dir(sid)
+        except ValueError:
+            continue
+        grid_path = os.path.join(path, "grid.json")
+        editor_path = os.path.join(path, "editor.json")
+        summary = {
+            "session_id": sid,
+            "editable": sid.startswith("editor_"),
+            "has_grid": item.get("has_grid", False),
+            "cell_count": 0,
+        }
+        try:
+            with open(grid_path, encoding="utf-8") as f:
+                grid = json.load(f)
+            summary["cell_count"] = len(grid.get("cells", []))
+            summary["resolution_mm"] = grid.get("resolution_mm")
+            summary["start"] = grid.get("start")
+            summary["goal"] = grid.get("goal")
+            summary["bounds"] = grid.get("bounds")
+        except Exception:
+            pass
+        if os.path.exists(editor_path):
+            summary["editable"] = True
+        maps.append(summary)
+    return jsonify({"ok": True, "maps": maps})
+
+
+@app.get("/api/editor/maps/<session_id>")
+def editor_map(session_id):
+    try:
+        path = _map_session_dir(session_id)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    grid_path = os.path.join(path, "grid.json")
+    if not os.path.exists(grid_path):
+        return jsonify({"ok": False, "error": "grid.json nao encontrado"}), 404
+    try:
+        with open(grid_path, encoding="utf-8") as f:
+            grid = json.load(f)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"falha ao ler mapa: {e}"}), 500
+    editor_path = os.path.join(path, "editor.json")
+    meta = {}
+    if os.path.exists(editor_path):
+        try:
+            with open(editor_path, encoding="utf-8") as f:
+                meta = json.load(f)
+        except Exception:
+            meta = {}
+    return jsonify({"ok": True, "session_id": session_id, "grid": grid, "meta": meta})
+
+
+@app.post("/api/editor/save")
+def editor_save():
+    j = request.json or {}
+    grid = _normalize_editor_grid(j.get("grid") or {})
+    name = re.sub(r"[^A-Za-z0-9_.-]+", "-", (j.get("name") or grid.get("name") or "mapa").strip()).strip("-")[:32]
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    requested = j.get("session_id") or ""
+    if requested and str(requested).startswith("editor_"):
+        session_id = _safe_map_session_id(requested)
+    else:
+        session_id = f"editor_{stamp}_{name or 'mapa'}"
+    try:
+        session_dir = _map_session_dir(session_id)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    os.makedirs(session_dir, exist_ok=True)
+    grid["session_id"] = session_id
+    grid["name"] = name or session_id
+    with open(os.path.join(session_dir, "grid.json"), "w", encoding="utf-8") as f:
+        json.dump(grid, f, indent=2)
+    with open(os.path.join(session_dir, "graph.json"), "w", encoding="utf-8") as f:
+        json.dump({"nodes": [], "edges": []}, f, indent=2)
+    with open(os.path.join(session_dir, "editor.json"), "w", encoding="utf-8") as f:
+        json.dump({
+            "session_id": session_id,
+            "name": grid["name"],
+            "start": grid.get("start", {"x": 0, "y": 0}),
+            "goal": grid.get("goal", {"x": 7000, "y": 0}),
+            "bounds": grid.get("bounds"),
+            "saved_at": int(time.time()),
+        }, f, indent=2)
+    return jsonify({"ok": True, "session_id": session_id, "grid": grid})
+
+
+@app.post("/api/editor/plan")
+def editor_plan():
+    j = request.json or {}
+    grid = _normalize_editor_grid(j.get("grid") or {})
+    start = _xy_from_payload(j.get("start") or grid.get("start"), (0.0, 0.0))
+    goal = _xy_from_payload(j.get("goal") or grid.get("goal"), (7000.0, 0.0))
+    plan = planner.plan_attempt(grid, start, goal)
+    waypoints = plan.get("waypoints") or []
+    if not plan.get("ok"):
+        attempted = plan.get("attempted_waypoints") or []
+        closest = plan.get("closest_xy") or start
+        return jsonify({
+            "ok": False,
+            "error": "sem caminho no mapa editado",
+            "waypoints": [],
+            "attempted_waypoints": [[round(x, 1), round(y, 1)] for x, y in attempted],
+            "attempted_distance_mm": round(_distance_from_start(start, attempted), 1),
+            "closest": {"x": round(closest[0], 1), "y": round(closest[1], 1)},
+            "distance_to_goal_mm": round(float(plan.get("distance_to_goal_mm") or 0.0), 1),
+            "explored_cells": int(plan.get("explored_cells") or 0),
+        }), 409
+    distance = _distance_from_start(start, waypoints)
+    return jsonify({
+        "ok": True,
+        "start": {"x": start[0], "y": start[1]},
+        "goal": {"x": goal[0], "y": goal[1]},
+        "waypoints": [[round(x, 1), round(y, 1)] for x, y in waypoints],
+        "distance_mm": round(distance, 1),
+        "cell_count": len(grid.get("cells", [])),
+        "explored_cells": int(plan.get("explored_cells") or 0),
+    })
+
+
+@app.post("/api/editor/simulate")
+def editor_simulate():
+    j = request.json or {}
+    grid = _normalize_editor_grid(j.get("grid") or {})
+    start = _xy_from_payload(j.get("start") or grid.get("start"), (0.0, 0.0))
+    goal = _xy_from_payload(j.get("goal") or grid.get("goal"), (7000.0, 0.0))
+    sim = _simulate_editor_reactive(grid, start, goal)
+    trail = sim.get("trail") or []
+    status = sim.get("status") or "TIMEOUT"
+    return jsonify({
+        "ok": True,
+        "status": status,
+        "arrived": status == "ARRIVED",
+        "start": {"x": start[0], "y": start[1]},
+        "goal": {"x": goal[0], "y": goal[1]},
+        "trail": [[round(x, 1), round(y, 1)] for x, y in trail],
+        "distance_mm": round(float(sim.get("distance_mm") or 0.0), 1),
+        "time_s": round(float(sim.get("time_s") or 0.0), 2),
+        "min_goal_mm": round(float(sim.get("min_goal_mm") or 0.0), 1),
+        "final_goal_mm": round(float(sim.get("final_goal_mm") or 0.0), 1),
+        "wall_entries": int(sim.get("wall_entries") or 0),
+        "last_state": sim.get("last_state") or "",
+        "sensor_model": sim.get("sensor_model"),
+        "map_known_by_robot": bool(sim.get("map_known_by_robot")),
+    })
+
+
 @app.post("/api/map/navigate")
 def map_navigate():
     """Planeja A* sobre o mapa gerado (frame de odometria = start em 0,0) e
@@ -1471,6 +2440,9 @@ def map_navigate():
         gx = float(j.get("gx")); gy = float(j.get("gy"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "alvo (gx,gy) invalido"}), 400
+    target_error = _mission_target_error(gx, gy)
+    if target_error:
+        return jsonify({"ok": False, "error": target_error}), 400
     grid, sess = _latest_grid()
     if grid is None:
         return jsonify({"ok": False, "error": "nenhum mapa salvo em maps/ (rode e salve um mapa antes)"}), 400
@@ -1494,6 +2466,9 @@ def map_roundtrip():
         gx = float(j.get("gx")); gy = float(j.get("gy"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "alvo (gx,gy) invalido"}), 400
+    target_error = _mission_target_error(gx, gy)
+    if target_error:
+        return jsonify({"ok": False, "error": target_error}), 400
     grid, sess = _latest_grid()
     if grid is None:
         return jsonify({"ok": False, "error": "nenhum mapa salvo em maps/ (rode e salve um mapa antes)"}), 400
@@ -1522,6 +2497,9 @@ def map_explore():
         gx = float(j.get("gx")); gy = float(j.get("gy"))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "alvo (gx,gy) invalido"}), 400
+    target_error = _mission_target_error(gx, gy)
+    if target_error:
+        return jsonify({"ok": False, "error": target_error}), 400
     ok = link.start_job("explore", link.job_map_explore, gx, gy)
     if not ok:
         return jsonify({"ok": False, "error": "ja existe um job em andamento"}), 409
@@ -1655,6 +2633,18 @@ def _need_free_for_job():
     return None
 
 
+def _mission_target_error(gx, gy):
+    if not math.isfinite(gx) or not math.isfinite(gy):
+        return "alvo precisa ter coordenadas finitas"
+    distance = math.hypot(gx, gy)
+    if distance > MAX_MISSION_TARGET_MM:
+        return (
+            f"alvo a {distance:.0f} mm excede o limite de "
+            f"{MAX_MISSION_TARGET_MM:.0f} mm; para 7 m use X=7000"
+        )
+    return None
+
+
 @app.post("/api/run")
 def run():
     err = _need_link()
@@ -1666,14 +2656,21 @@ def run():
         return jsonify({"ok": False, "error": "pare a execucao atual antes de iniciar outra"}), 409
     j = request.json or {}
     try:
-        gx = float(j.get("gx", 700))
+        gx = float(j.get("gx", 7000))
         gy = float(j.get("gy", 0))
         trim = float(j.get("trim", 0))
-        duration = float(j.get("duration", 15))
+        duration = float(j.get("duration", 120))
     except ValueError:
         return jsonify({"ok": False, "error": "parametro invalido"}), 400
-    link.run(gx, gy, trim, bool(j.get("loop")), bool(j.get("diag")), duration)
-    return jsonify({"ok": True})
+    target_error = _mission_target_error(gx, gy)
+    if target_error:
+        return jsonify({"ok": False, "error": target_error}), 400
+    slow = j.get("slow") in (True, 1, "1", "true", "slow")
+    link.run(
+        gx, gy, trim, bool(j.get("loop")), bool(j.get("diag")), duration,
+        slow=slow,
+    )
+    return jsonify({"ok": True, "slow": slow})
 
 
 @app.post("/api/stop")

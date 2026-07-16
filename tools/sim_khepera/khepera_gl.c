@@ -5,13 +5,19 @@
  *   ../../khepera_real/patrulha/controller_core.h
  *
  * Ou seja: a janela OpenGL e o robo fisico usam a mesma maquina de estados
- * GOAL/WALLF/BEIRADA. A simulacao troca apenas hardware por sensores raycast
- * e cinematica diferencial aproximada.
+ * GOAL/RECUO/GIRO/CONTORNO/ALINHA/TESTE. A simulacao troca apenas hardware
+ * por contatos geometricos e cinematica diferencial aproximada.
  *
  * Uso:
- *   khepera_gl.exe [mundos.json]                 janela interativa
- *   khepera_gl.exe --batch outdir [mundos.json] [--save-all]
+ *   khepera_gl.exe [mundos.json] [--planned] [--roundtrip]
+ *                                                janela interativa
+ *   khepera_gl.exe --batch outdir [mundos.json] [--save-all] [--planned] [--roundtrip]
  *                                                gera summary.txt e imagens
+ *
+ * Por padrao a simulacao roda em modo TATIL: o controlador recebe apenas pose,
+ * alvo e contatos IR locais. O mapa completo do cenario e usado somente pelo
+ * ambiente para gerar contato/colisao, nunca para planejar.
+ * Use --planned apenas para comparar contra um plano global idealizado.
  *
  * Teclas na janela:
  *   N/P    proximo/anterior
@@ -46,8 +52,8 @@
 
 #define ROBOT_BODY_RADIUS_MM      70.0
 #define ROBOT_CLEARANCE_RADIUS_MM 90.0
-#define SENSOR_MAX_MM             350.0
-#define IR_EXCESS_MAX   520.0
+#define SENSOR_MAX_MM             SIM_IR_RANGE_MM
+#define IR_EXCESS_MAX             SIM_IR_EXCESS_MAX
 #define DT_S            0.04
 #define MAX_TIME_S      900.0
 #define LINEAR_MM_S     120.0
@@ -105,6 +111,7 @@ typedef struct {
     int reached_b;
     double active_start_x, active_start_y;
     double active_goal_x, active_goal_y;
+    double last_dc;
     KhepOutput last;
 } Sim;
 
@@ -115,6 +122,8 @@ static Sim g_sim;
 static int g_paused = 0;
 static int g_steps_per_tick = 1;
 static int g_batch_save_all = 0;
+static int g_use_global_plan = 0;
+static int g_roundtrip = 0;
 static HWND g_hwnd = NULL;
 static HDC g_hdc = NULL;
 static HGLRC g_glrc = NULL;
@@ -880,8 +889,12 @@ static void configure_leg(const Scenario *sc,
     g_sim.active_start_y = ay;
     g_sim.active_goal_x = bx;
     g_sim.active_goal_y = by;
-    g_sim.waypoint_count = build_waypoints(sc, ax, ay, bx, by,
-                                           g_sim.waypoints, MAX_WAYPOINTS);
+    if (g_use_global_plan) {
+        g_sim.waypoint_count = build_waypoints(sc, ax, ay, bx, by,
+                                               g_sim.waypoints, MAX_WAYPOINTS);
+    } else {
+        g_sim.waypoint_count = 0;
+    }
     if (g_sim.waypoint_count <= 0) {
         g_sim.waypoint_count = 1;
         g_sim.waypoints[0].x = bx;
@@ -894,6 +907,7 @@ static void configure_leg(const Scenario *sc,
 static int maybe_advance_waypoint(const Scenario *sc) {
     int changed = 0;
     int i;
+    if (!g_use_global_plan) return 0;
     if (g_sim.waypoint_count <= 0) return 0;
 
     while (g_sim.waypoint_index + 1 < g_sim.waypoint_count &&
@@ -917,7 +931,7 @@ static int maybe_advance_waypoint(const Scenario *sc) {
 
 static int handle_active_goal(const Scenario *sc, double d_final) {
     if (d_final >= ARRIVE_MM) return 0;
-    if (!g_sim.return_leg) {
+    if (g_roundtrip && !g_sim.return_leg) {
         g_sim.reached_b = 1;
         g_sim.final_goal_mm = d_final;
         configure_leg(sc, g_sim.x, g_sim.y, 0.0, 0.0, 1);
@@ -928,7 +942,7 @@ static int handle_active_goal(const Scenario *sc, double d_final) {
     return 1;
 }
 
-static double cast_sensor(const Scenario *sc, double x, double y, double th, double rel) {
+static double cast_sensor_ray(const Scenario *sc, double x, double y, double th, double rel) {
     double a = th + rel;
     double step = 4.0;
     double d;
@@ -945,18 +959,61 @@ static double cast_sensor(const Scenario *sc, double x, double y, double th, dou
     return SENSOR_MAX_MM;
 }
 
-static int ir_from_dist(double dist) {
-    if (dist >= SENSOR_MAX_MM) return IR_BASE;
-    return IR_BASE + (int)clamp_local(IR_EXCESS_MAX * (1.0 - dist / SENSOR_MAX_MM), 0.0, IR_EXCESS_MAX);
+static double cast_sensor(const Scenario *sc, double x, double y, double th, double rel) {
+    const double aperture = 14.0 * M_PI / 180.0;
+    double best = cast_sensor_ray(sc, x, y, th, rel);
+    double left = cast_sensor_ray(sc, x, y, th, rel + aperture);
+    double right = cast_sensor_ray(sc, x, y, th, rel - aperture);
+    if (left < best) best = left;
+    if (right < best) best = right;
+    return best;
+}
+
+static void set_tactile_sensor(double rel, int raw,
+                               int *rawF, int *rawFL, int *rawFR,
+                               int *rawL, int *rawR) {
+    const double angles[] = {0.0, 35.0, -35.0, 80.0, -80.0};
+    int *values[] = {rawF, rawFL, rawFR, rawL, rawR};
+    int best = -1;
+    double best_error = M_PI;
+    int i;
+    for (i = 0; i < 5; ++i) {
+        double error = fabs(khep_wrap(rel - angles[i] * M_PI / 180.0));
+        if (error < best_error) {
+            best_error = error;
+            best = i;
+        }
+    }
+    if (best >= 0 && best_error < 48.0 * M_PI / 180.0 && raw > *values[best])
+        *values[best] = raw;
 }
 
 static void read_ir(const Scenario *sc, double x, double y, double th,
                     int *rawF, int *rawFL, int *rawFR, int *rawL, int *rawR) {
-    *rawF  = ir_from_dist(cast_sensor(sc, x, y, th, 0.0));
-    *rawFL = ir_from_dist(cast_sensor(sc, x, y, th, 35.0 * M_PI / 180.0));
-    *rawFR = ir_from_dist(cast_sensor(sc, x, y, th, -35.0 * M_PI / 180.0));
-    *rawL  = ir_from_dist(cast_sensor(sc, x, y, th, 80.0 * M_PI / 180.0));
-    *rawR  = ir_from_dist(cast_sensor(sc, x, y, th, -80.0 * M_PI / 180.0));
+    int i;
+    *rawF = *rawFL = *rawFR = *rawL = *rawR = SIM_IR_FREE_RAW;
+
+    /* Modelo tatil radial: a leitura nasce quando a borda circular do robo
+     * fica a poucos milimetros do obstaculo, mesmo entre dois raios. */
+    for (i = 0; i < sc->obstacle_count; ++i) {
+        Rect rect = sc->obstacles[i];
+        double min_x = rect.x - 0.5 * rect.w;
+        double max_x = rect.x + 0.5 * rect.w;
+        double min_y = rect.y - 0.5 * rect.h;
+        double max_y = rect.y + 0.5 * rect.h;
+        double qx = clamp_local(x, min_x, max_x);
+        double qy = clamp_local(y, min_y, max_y);
+        double center_distance = hypot(qx - x, qy - y);
+        double gap = center_distance - ROBOT_BODY_RADIUS_MM;
+        if (gap < 0.0) gap = 0.0;
+        if (gap < 12.0 && center_distance > 1e-6) {
+            double rel = khep_wrap(atan2(qy - y, qx - x) - th);
+            int raw = SIM_IR_FREE_RAW + (int)clamp_local(
+                SIM_IR_EXCESS_MAX * (1.0 - gap / 12.0),
+                0.0, SIM_IR_EXCESS_MAX);
+            set_tactile_sensor(rel, raw, rawF, rawFL, rawFR, rawL, rawR);
+        }
+    }
 }
 
 static void reset_sim(int idx) {
@@ -991,11 +1048,7 @@ static void sim_step(const Scenario *sc) {
     read_ir(sc, g_sim.x, g_sim.y, g_sim.th, &rawF, &rawFL, &rawFR, &rawL, &rawR);
     old_x = g_sim.x;
     old_y = g_sim.y;
-    dc = 0.0;
-    if (g_sim.trail_count > 1) {
-        TrailPoint p = g_sim.trail[g_sim.trail_count - 2];
-        dc = hypot(g_sim.x - p.x, g_sim.y - p.y);
-    }
+    dc = g_sim.last_dc;
 
     g_sim.last = khep_ctrl_step(&g_sim.ctrl, g_sim.x, g_sim.y, g_sim.th, dc, DT_S, g_sim.t,
                                 rawF, rawFL, rawFR, rawL, rawR, gmin);
@@ -1005,6 +1058,7 @@ static void sim_step(const Scenario *sc) {
     g_sim.y += sin(g_sim.th) * (g_sim.last.fwd_s * LINEAR_MM_S * DT_S);
     g_sim.th = khep_wrap(g_sim.th - g_sim.last.diff_s * ANGULAR_RAD_S * DT_S);
     moved = hypot(g_sim.x - old_x, g_sim.y - old_y);
+    g_sim.last_dc = moved;
     g_sim.path_mm += moved;
     g_sim.t += DT_S;
 
@@ -1133,7 +1187,7 @@ static void draw_scene(const Scenario *sc, const Sim *sim, int width, int height
         glEnd();
     }
 
-    if (sim->waypoint_count > 0) {
+    if (g_use_global_plan && sim->waypoint_count > 0) {
         glLineWidth(2.0f);
         if (sim->return_leg) gl_color(0.56, 0.20, 0.70);
         else gl_color(0.32, 0.24, 0.72);
@@ -1153,7 +1207,11 @@ static void draw_scene(const Scenario *sc, const Sim *sim, int width, int height
     if (sim->trail_count > 1) {
         glLineWidth(3.0f);
         for (i = 1; i < sim->trail_count; ++i) {
-            if (sim->trail[i].state == KHEP_WALLF) gl_color(0.08, 0.40, 0.75);
+            if (sim->trail[i].state == KHEP_CLIFF_BACKOFF ||
+                sim->trail[i].state == KHEP_CLIFF_TURN)
+                gl_color(0.86, 0.18, 0.15);
+            else if (sim->trail[i].state != KHEP_GOAL)
+                gl_color(0.08, 0.40, 0.75);
             else if (sim->trail[i].return_leg) gl_color(0.45, 0.22, 0.58);
             else gl_color(0.18, 0.49, 0.20);
             glBegin(GL_LINES);
@@ -1252,8 +1310,10 @@ static void update_window_title(void) {
     char title[256];
     const Scenario *sc = &g_scenarios[g_current];
     snprintf(title, sizeof(title),
-             "Khepera OpenGL - [%d/%d] %s | %s | %s | t=%.1fs goal=%.0fmm wp=%d/%d path=%.0fmm walls=%d | %dx | N/P Setas R F Space Esc",
+             "Khepera OpenGL - [%d/%d] %s | %s | %s%s | %s | t=%.1fs goal=%.0fmm wp=%d/%d path=%.0fmm walls=%d | %dx | N/P Setas R F Space Esc",
              g_current + 1, g_scenario_count, sc->name, status_text(&g_sim),
+             g_use_global_plan ? "PLANNED" : "LOCAL-IR",
+             g_roundtrip ? "+RT" : "",
              g_sim.return_leg ? "B->A" : "A->B", g_sim.t, active_goal_dist(),
              g_sim.waypoint_index + 1, g_sim.waypoint_count, g_sim.path_mm, g_sim.wall_entries, g_steps_per_tick);
     SetWindowTextA(g_hwnd, title);
@@ -1429,29 +1489,47 @@ static int run_interactive(void) {
     return 0;
 }
 
+static void apply_option(const char *arg) {
+    if (strcmp(arg, "--save-all") == 0) {
+        g_batch_save_all = 1;
+    } else if (strcmp(arg, "--planned") == 0) {
+        g_use_global_plan = 1;
+    } else if (strcmp(arg, "--local") == 0 || strcmp(arg, "--local-ir") == 0) {
+        g_use_global_plan = 0;
+    } else if (strcmp(arg, "--roundtrip") == 0) {
+        g_roundtrip = 1;
+    }
+}
+
 int main(int argc, char **argv) {
     const char *default_worlds = "tools/sim_khepera/worlds_1000.json";
     const char *worlds_path = default_worlds;
     int explicit_worlds = 0;
+    int i;
 
     init_scenarios();
 
     if (argc >= 2 && strcmp(argv[1], "--batch") == 0) {
         const char *out_dir = argc >= 3 ? argv[2] : "tools/sim_khepera/out_gl";
-        if (argc >= 4) {
-            worlds_path = argv[3];
+        int argi = 3;
+        if (argi < argc && argv[argi][0] != '-') {
+            worlds_path = argv[argi++];
             explicit_worlds = 1;
         }
-        if (argc >= 5 && strcmp(argv[4], "--save-all") == 0) {
-            g_batch_save_all = 1;
+        for (; argi < argc; ++argi) {
+            apply_option(argv[argi]);
         }
         if (!load_scenarios_json(worlds_path) && explicit_worlds) return 1;
         reset_sim(0);
         return run_batch(out_dir);
     }
-    if (argc >= 2) {
-        worlds_path = argv[1];
-        explicit_worlds = 1;
+    for (i = 1; i < argc; ++i) {
+        if (argv[i][0] == '-') {
+            apply_option(argv[i]);
+        } else {
+            worlds_path = argv[i];
+            explicit_worlds = 1;
+        }
     }
     if (!load_scenarios_json(worlds_path) && explicit_worlds) return 1;
     reset_sim(0);

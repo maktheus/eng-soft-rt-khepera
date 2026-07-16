@@ -6,29 +6,34 @@ obstáculos, tanto em **simulação (Webots)** quanto no **robô físico real**.
 
 ## Algoritmo
 
-Navegação reativa + planejamento local no estilo **Bug2** (Lumelsky & Stepanov, 1987):
+O objetivo principal do projeto e navegar sem mapa previo. O robo conhece apenas
+o alvo B no referencial da odometria e descobre obstaculos ao toca-los com o IR.
 
-1. **Go-to-goal (rastreamento de linha por ponto-P)** — em vez de só mirar em B, o robô
-   **segue a linha A→B** usando o erro lateral `d_line`: o rumo desejado une o avanço na
-   direção da linha com uma correção proporcional+integral (com anti-windup) do desvio ao
-   eixo. É a malha externa (cinemática) de um controle em cascata, adaptada ao acionamento
-   diferencial. Alternável por `USE_POINT_P` (fallback = proporcional de rumo clássico).
-2. **Wall-following** — ao topar num obstáculo, contorna sua borda mantendo-o de um lado
-   a uma distância-alvo (controle proporcional no sensor lateral).
-3. **Leave condition** — assim que **recruza a linha A→B mais perto de B**, larga a
-   parede e volta ao rastreamento. Com o ponto-P, ao sair do contorno o robô **volta ao
-   eixo A→B** em vez de cortar diagonal até B — corrige a re-aquisição da linha no Bug2.
+Navegacao tatil orientada ao alvo:
 
-Na simulação a pose vem de **GPS + IMU**; no robô real, de **odometria** pelos encoders
-(147,4 pulsos/mm, base entre rodas 105,4 mm).
+1. **GOAL** - mantem o rumo de B por odometria. Os dois motores avancam e as
+   correcoes acontecem em arco, sem rotacao continua no proprio eixo.
+2. **CONTATO** - uma leitura IR alta registra um ponto do obstaculo no mapa tatil.
+3. **RECUO** - afasta 85 mm, medidos pelos encoders.
+4. **GIRO** - escolhe um lado persistente e faz um unico giro limitado, sobre
+   uma roda, para assumir a direcao tangencial ao obstaculo.
+5. **CONTORNO** - avanca um trecho medido pela odometria, sem depender de manter
+   a parede visivel. O trecho cresce quando o obstaculo e maior.
+6. **ALINHA/TESTE** - volta a apontar para B e confirma o caminho avancando. Se
+   tocar novamente, continua pelo mesmo lado; se reconhecer um loop ou falta de
+   progresso, troca de lado uma decisao por vez.
 
-### Planejamento global sobre o mapa (opcional)
+A simulacao e o robo fisico compartilham o mesmo \`controller_core.h\`. No robo
+real, a pose vem da odometria (147,4 pulsos/mm, base entre rodas 105,4 mm).
 
-Além do A→B reativo, a interface pode **planejar** um caminho: um mapa de ocupação é gerado
-enquanto o robô anda, e um **A\*** sobre esse mapa (`interface/planner.py`) produz waypoints
-que o robô percorre em **modo missão** (`--mission`, odometria contínua entre legs). Há
-também **geração automática de mapa** (`--slow`): o robô vai de A a B devagar, contorna os
-obstáculos e salva o mapa sozinho.
+### Planejamento global sobre o mapa (opcional / diagnostico)
+
+Depois de uma missao real, a interface pode **analisar** o mapa observado: um
+**A\*** sobre esse mapa (`interface/planner.py`) produz um caminho idealizado
+para diagnostico/comparacao. Esse modo pode dirigir o robo por waypoints em
+**modo missao** (`--mission`), mas nao e o objetivo principal. A geracao
+automatica de mapa (`--slow`) continua rodando A->B com sensores locais e salva
+o mapa observado ao final.
 
 ## Estrutura
 
@@ -50,11 +55,22 @@ está associado ao Khepera4. Compilação via toolchain do próprio Webots (`mak
 — transferência do código por console serial, build no robô (gcc + khepera4toolbox) e
 execução na bateria (sem cabo).
 
-**Interface web local (USB/serial ou Wi-Fi/SSH):** veja [`interface/README.md`](interface/README.md).
+**Interface web local (USB/serial ou Wi-Fi/SSH):** da raiz do repositorio, rode:
+
+```bash
+make run
+```
+
+O comando cria/atualiza `.venv`, instala as dependencias de `interface/requirements.txt`
+e sobe `http://localhost:8340`. O backend Flask tambem serve o frontend estatico de
+`interface/static/`, entao front e back ficam prontos juntos para chamar as rotas `/api`
+que comunicam com o robo. Veja [`interface/README.md`](interface/README.md).
+No Windows sem GNU Make instalado, use `.\make.cmd run` ou instale o `make` para usar
+exatamente `make run`.
 Ela sobe um servidor Flask em `http://localhost:8340` para conectar ao robô (login `root`,
 ou usuário comum com elevação automática via `sudo`), executar missões, usar controle manual
 tipo carrinho remoto, acompanhar telemetria, criar mapas em grade/grafo, **gerar mapa A→B
-automaticamente**, **navegar por A\* sobre o mapa**, enviar `main.c`, recompilar e ajustar
+automaticamente**, **diagnosticar/rodar A\* sobre mapa salvo**, enviar `main.c`, recompilar e ajustar
 parâmetros `#define` permitidos.
 
 ## Equipe

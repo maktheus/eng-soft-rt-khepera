@@ -2,7 +2,9 @@ param(
     [string]$OutDir = "tools/sim_khepera/out_gl",
     [string]$Worlds = "tools/sim_khepera/worlds_1000.json",
     [switch]$Interactive,
-    [switch]$SaveAll
+    [switch]$SaveAll,
+    [switch]$Planned,
+    [switch]$Roundtrip
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,10 +36,15 @@ try {
     }
 
     if ($Interactive) {
-        Start-Process -FilePath $exe -ArgumentList @($Worlds) -WorkingDirectory $root
+        $args = @($Worlds)
+        if ($Planned) { $args += "--planned" }
+        if ($Roundtrip) { $args += "--roundtrip" }
+        Start-Process -FilePath $exe -ArgumentList $args -WorkingDirectory $root
     } else {
         $args = @("--batch", $OutDir, $Worlds)
         if ($SaveAll) { $args += "--save-all" }
+        if ($Planned) { $args += "--planned" }
+        if ($Roundtrip) { $args += "--roundtrip" }
         & $exe @args
     }
 } finally {

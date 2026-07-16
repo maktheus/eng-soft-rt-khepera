@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "units": "mm",
+    "count": 3,
+    "seed": 1,
+    "description": "Cenarios curtos para validar transicoes do navegador tatil"
+  },
+  "scenarios": [
+    {
+      "name": "livre",
+      "goal": [1200, 0],
+      "bounds": [-300, 1500, -700, 700],
+      "obstacles": []
+    },
+    {
+      "name": "caixa_central",
+      "goal": [1500, 0],
+      "bounds": [-300, 1800, -800, 800],
+      "obstacles": [
+        {"name": "caixa", "rect": [650, 0, 220, 320]}
+      ]
+    },
+    {
+      "name": "caixa_larga",
+      "goal": [1800, 120],
+      "bounds": [-300, 2200, -1000, 1000],
+      "obstacles": [
+        {"name": "caixa", "rect": [760, 20, 320, 500]}
+      ]
+    }
+  ]
+}

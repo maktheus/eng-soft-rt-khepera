@@ -9,14 +9,18 @@ O ponto importante: `khepera_gl.c` inclui diretamente:
 ```
 
 Esse `controller_core.h` tambem e usado por `khepera_real/patrulha/main.c`. Assim, a janela
-OpenGL e o robo fisico executam a mesma maquina de estados `GOAL/WALLF/BEIRADA`; a simulacao
+OpenGL e o robo fisico executam a mesma maquina de estados tatil; a simulacao
 troca apenas hardware por raycast de sensores IR e cinematica diferencial aproximada.
+Por padrao, o modo e **tatil**: o mapa completo do cenario fica
+escondido do controlador e serve apenas para gerar sensores/colisao. O IR
+simulado usa alcance curto e cone estreito para ficar mais proximo do hardware
+observado, que so percebe obstaculos muito perto do toque.
 
 A escala esta em milimetros. O desenho separa:
 
 - corpo do Khepera: raio aproximado de `70 mm`;
 - footprint/folga de seguranca: raio de `90 mm`;
-- sensores IR: raios ate `350 mm`;
+- sensores IR: cone curto ate `120 mm`;
 - grade: celulas de `250 mm`;
 - obstaculos: caixas retangulares em dimensoes reais aproximadas, como `150x150`,
   `200x200`, `250x250`, paredes e blocos maiores.
@@ -57,6 +61,10 @@ Modo batch, gera imagens e metricas:
 .\tools\sim_khepera\build.ps1
 ```
 
+Esse e o modo recomendado para o objetivo principal do projeto: A->B sem mapa
+previo. Para comparar contra um plano global idealizado, use `-Planned`. Para
+testar ida-e-volta A->B->A, use `-Roundtrip`.
+
 Modo batch salvando uma imagem para cada caso:
 
 ```powershell
@@ -67,6 +75,12 @@ Modo interativo, abre a janela OpenGL:
 
 ```powershell
 .\tools\sim_khepera\build.ps1 -Interactive
+```
+
+Comparacao com plano global:
+
+```powershell
+.\tools\sim_khepera\build.ps1 -Interactive -Planned
 ```
 
 Teclas:
@@ -105,16 +119,16 @@ Em `http://localhost:8340`, use o painel `Simulacao OpenGL` para:
 
 - gerar o JSON com ate 1000 mundos;
 - escolher a seed da randomizacao;
-- validar o lote inteiro em batch;
+- validar o lote inteiro em batch tatil;
 - abrir a janela OpenGL interativa;
 - ver o total de mundos, chegadas, falhas e timeouts do ultimo `summary.txt`.
 
 ## Leitura da visualizacao
 
-- verde: estado `GOAL`, rastreando a linha A->B;
-- azul: estado `WALLF`, contornando obstaculo;
+- verde: estado `GOAL`, mirando diretamente em B com desvio local por IR;
+- azul: recuo, giro limitado, contorno, alinhamento ou teste do caminho;
 - marrom: obstaculo;
 - retangulo claro ao redor do obstaculo: area inflada pelo raio aproximado do robo;
 - linhas amarelas/vermelhas: sensores IR livres ou com deteccao;
-- linha cinza: linha ideal A->B;
+- linha cinza: referencia A->B usada para diagnostico/leave condition, nao um mapa previo;
 - disco amarelo: robo e orientacao final.

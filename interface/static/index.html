@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Khepera IV - Interface de Controle</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
       color-scheme: light;
@@ -42,7 +45,7 @@
 
     button {
       border: 1px solid var(--line-strong);
-      background: #fff;
+      background: var(--button-bg, #fff);
       color: var(--text);
       border-radius: 6px;
       min-height: 38px;
@@ -78,7 +81,7 @@
     }
 
     button.danger:hover:not(:disabled) {
-      background: #fff1f0;
+      background: var(--danger-soft, #fff1f0);
       color: var(--danger);
     }
 
@@ -87,7 +90,7 @@
       min-height: 38px;
       width: 100%;
       border: 1px solid var(--line-strong);
-      background: #fff;
+      background: var(--input-bg, #fff);
       color: var(--text);
       border-radius: 6px;
       padding: 7px 9px;
@@ -147,7 +150,7 @@
       min-height: 28px;
       padding: 4px 9px;
       border: 1px solid var(--line);
-      background: #fff;
+      background: var(--badge-bg, #fff);
       border-radius: 999px;
       color: var(--muted);
       font-size: 12px;
@@ -199,7 +202,7 @@
       gap: 10px;
       padding: 12px 14px;
       border-bottom: 1px solid var(--line);
-      background: linear-gradient(180deg, #ffffff 0%, #fbfcfb 100%);
+      background: var(--panel-header-bg, linear-gradient(180deg, #ffffff 0%, #fbfcfb 100%));
     }
 
     .panel h2 {
@@ -259,7 +262,7 @@
 
     .segmented button.active {
       border-color: var(--accent);
-      background: #fff;
+      background: var(--button-bg, #fff);
       color: var(--accent-strong);
       font-weight: 700;
     }
@@ -286,12 +289,12 @@
       text-align: left;
       padding: 9px 10px;
       border-radius: 6px;
-      background: #fff;
+      background: var(--button-bg, #fff);
     }
 
     .device-card.active {
       border-color: var(--accent);
-      background: #effaf5;
+      background: var(--success-soft, #effaf5);
       color: var(--accent-strong);
     }
 
@@ -396,7 +399,7 @@
       border: 1px solid var(--line);
       border-radius: 6px;
       padding: 9px 10px;
-      background: #fff;
+      background: var(--panel);
     }
 
     .stat .label {
@@ -434,7 +437,7 @@
       min-height: 320px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fbfdfb;
+      background: var(--canvas-bg, #fbfdfb);
     }
 
     .legend {
@@ -478,6 +481,10 @@
       background: #315f8a;
     }
 
+    .swatch.attempt {
+      background: #d58a17;
+    }
+
     .map-stats {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -496,8 +503,8 @@
     .console {
       height: 330px;
       overflow: auto;
-      background: #111611;
-      color: #d8eadb;
+      background: var(--console-bg, #111611);
+      color: var(--console-text, #d8eadb);
       border-radius: 8px;
       padding: 10px;
       font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -678,6 +685,770 @@
         overflow-x: auto;
       }
     }
+
+    /* Mutum flow layer */
+    :root {
+      --mutum-red: #ED2C27;
+      --mutum-red-deep: #EC2B26;
+      --mutum-coral: #EE736E;
+      --mutum-blush: #FBE3E1;
+      --mutum-cream: #F0EFEB;
+      --mutum-cream-2: #E8E6DF;
+      --mutum-bone: #DBD4C9;
+      --mutum-sand: #C9C2B5;
+      --mutum-stone: #8C857A;
+      --mutum-slate: #4D4943;
+      --mutum-ink: #191919;
+      --mutum-ink-2: #2A2826;
+      --mutum-forest: #1F5D3A;
+      --mutum-leaf: #3F8A5B;
+      --mutum-river: #2D6A8C;
+      --mutum-amber: #E8A33D;
+      --bg: var(--mutum-cream);
+      --panel: #fff;
+      --line: #D9D5CB;
+      --line-strong: #C2BDB1;
+      --text: var(--mutum-ink);
+      --muted: var(--mutum-slate);
+      --soft: #F8F7F4;
+      --accent: var(--mutum-red);
+      --accent-strong: #D11F1A;
+      --warn: #9B5D00;
+      --danger: var(--mutum-red-deep);
+      --info: var(--mutum-river);
+      --shadow: 0 4px 12px rgba(25, 25, 25, 0.08), 0 2px 4px rgba(25, 25, 25, 0.05);
+      --page-bg:
+        radial-gradient(circle at 100% 0%, rgba(237, 44, 39, 0.08), transparent 30rem),
+        linear-gradient(180deg, #f8f7f4 0%, var(--mutum-cream) 46%, #ebe8df 100%);
+      --button-bg: #fff;
+      --input-bg: #fff;
+      --badge-bg: var(--soft);
+      --panel-header-bg: #fff;
+      --control-bg: var(--mutum-cream-2);
+      --tab-bg: rgba(255, 255, 255, 0.72);
+      --dock-bg: rgba(255, 255, 255, 0.78);
+      --active-bg: var(--mutum-ink);
+      --active-fg: var(--mutum-bone);
+      --code-bg: var(--mutum-cream-2);
+      --danger-soft: var(--mutum-blush);
+      --success-soft: rgba(63, 138, 91, 0.1);
+      --success-text: var(--mutum-forest);
+      --warn-soft: rgba(232, 163, 61, 0.12);
+      --warn-text: #8a5700;
+      --canvas-bg: #fff;
+      --canvas-grid: #ebe7de;
+      --canvas-axis: #c9c2b5;
+      --canvas-label: var(--muted);
+      --marker-fill: #fff;
+      --robot-fill: var(--mutum-ink);
+      --start-color: var(--mutum-forest);
+      --goal-color: var(--mutum-red);
+      --path-color: var(--mutum-river);
+      --attempt-color: #d58a17;
+      --map-obstacle: rgba(237, 44, 39, 0.58);
+      --map-visited: rgba(31, 93, 58, 0.34);
+      --map-free: rgba(63, 138, 91, 0.18);
+      --console-bg: #161615;
+      --console-text: #e4ddd2;
+      --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+      --font-body: "Manrope", ui-sans-serif, system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+      --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #11100f;
+      --panel: #1b1917;
+      --line: #34312d;
+      --line-strong: #504a43;
+      --text: #f2f0ea;
+      --muted: #b8b0a4;
+      --soft: #24211e;
+      --accent: #ff5a52;
+      --accent-strong: #ff817a;
+      --warn: #f0c16f;
+      --danger: #ff756f;
+      --info: #8cc7e8;
+      --shadow: 0 12px 30px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.22);
+      --page-bg:
+        radial-gradient(circle at 100% 0%, rgba(237, 44, 39, 0.12), transparent 30rem),
+        linear-gradient(180deg, #0e0e0d 0%, #151412 48%, #11100f 100%);
+      --button-bg: #201e1b;
+      --input-bg: #171614;
+      --badge-bg: #24211e;
+      --panel-header-bg: #201e1b;
+      --control-bg: #24211e;
+      --tab-bg: rgba(28, 26, 24, 0.84);
+      --dock-bg: rgba(25, 24, 23, 0.82);
+      --active-bg: var(--mutum-cream);
+      --active-fg: var(--mutum-ink);
+      --code-bg: #2a2723;
+      --danger-soft: rgba(237, 44, 39, 0.13);
+      --success-soft: rgba(63, 138, 91, 0.17);
+      --success-text: #b8e3c7;
+      --warn-soft: rgba(232, 163, 61, 0.17);
+      --warn-text: #f0c16f;
+      --canvas-bg: #161514;
+      --canvas-grid: #302d29;
+      --canvas-axis: #5b534a;
+      --canvas-label: #d6d0c5;
+      --marker-fill: #1b1917;
+      --robot-fill: #f2f0ea;
+      --start-color: #77c994;
+      --goal-color: #ff756f;
+      --path-color: #8cc7e8;
+      --attempt-color: #f0b35c;
+      --map-obstacle: rgba(255, 117, 111, 0.54);
+      --map-visited: rgba(119, 201, 148, 0.26);
+      --map-free: rgba(119, 201, 148, 0.14);
+      --console-bg: #0d0d0c;
+      --console-text: #f0ebe2;
+    }
+
+    html,
+    body {
+      font-family: var(--font-body);
+      background: var(--page-bg);
+    }
+
+    button,
+    input,
+    select {
+      font-family: var(--font-body);
+    }
+
+    button {
+      border-color: var(--line-strong);
+      border-radius: 10px;
+      min-height: 40px;
+      font-weight: 700;
+      transition: border-color 140ms var(--ease-out), color 140ms var(--ease-out),
+        background 140ms var(--ease-out), box-shadow 140ms var(--ease-out), transform 100ms var(--ease-out);
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--accent-strong);
+      box-shadow: 0 6px 16px rgba(25, 25, 25, 0.08);
+    }
+
+    button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--mutum-cream);
+      box-shadow: 0 8px 24px rgba(237, 44, 39, 0.2);
+    }
+
+    button.primary:hover:not(:disabled) {
+      background: var(--accent-strong);
+      color: var(--mutum-cream);
+    }
+
+    button.danger {
+      border-color: rgba(237, 44, 39, 0.35);
+      color: var(--danger);
+      background: var(--button-bg);
+    }
+
+    input,
+    select {
+      min-height: 40px;
+      border-color: var(--line-strong);
+      border-radius: 10px;
+      background: var(--input-bg);
+    }
+
+    input:focus-visible,
+    select:focus-visible,
+    button:focus-visible {
+      outline: 2px solid rgba(237, 44, 39, 0.45);
+      outline-offset: 2px;
+    }
+
+    code,
+    kbd,
+    samp {
+      font-family: var(--font-mono);
+      background: var(--code-bg);
+      color: var(--text);
+      border-radius: 4px;
+    }
+
+    .flow-shell {
+      width: min(1440px, calc(100vw - 32px));
+      padding: 20px 0 28px;
+    }
+
+    .flow-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      align-items: center;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      border: 1px solid #34322e;
+      border-radius: 16px;
+      background: rgba(25, 25, 25, 0.92);
+      color: var(--mutum-bone);
+      box-shadow: 0 18px 40px rgba(25, 25, 25, 0.18);
+      backdrop-filter: blur(20px);
+    }
+
+    .flow-topbar .brand {
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: var(--mutum-cream);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+      flex: 0 0 auto;
+    }
+
+    .brand-mark img {
+      width: 24px;
+      height: 30px;
+      object-fit: contain;
+    }
+
+    .flow-topbar .brand h1 {
+      font-family: var(--font-display);
+      font-size: clamp(22px, 2vw, 30px);
+      color: var(--mutum-cream);
+      letter-spacing: -0.02em;
+    }
+
+    .flow-topbar .brand span {
+      color: #b5afa4;
+      font-size: 13px;
+    }
+
+    .flow-topbar .badge {
+      border-color: #34322e;
+      background: #232220;
+      color: var(--mutum-bone);
+    }
+
+    .flow-topbar .badge.ok {
+      border-color: rgba(63, 138, 91, 0.55);
+      background: rgba(63, 138, 91, 0.14);
+      color: #b8e3c7;
+    }
+
+    .flow-topbar .badge.warn {
+      border-color: rgba(232, 163, 61, 0.5);
+      background: rgba(232, 163, 61, 0.12);
+      color: #f0c16f;
+    }
+
+    .flow-topbar .badge.danger {
+      border-color: rgba(238, 115, 110, 0.55);
+      background: rgba(238, 115, 110, 0.12);
+      color: #f3aaa6;
+    }
+
+    .theme-switch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #b5afa4;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .theme-switch input {
+      position: absolute;
+      width: 1px;
+      min-height: 1px;
+      margin: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .theme-switch-track {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex: 0 0 44px;
+      border: 1px solid #686159;
+      border-radius: 999px;
+      background: #4a4641;
+      transition: background 160ms var(--ease-out), border-color 160ms var(--ease-out);
+    }
+
+    .theme-switch-track::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      transition: transform 160ms var(--ease-out);
+    }
+
+    .theme-switch input:checked + .theme-switch-track {
+      border-color: var(--mutum-coral);
+      background: var(--mutum-red);
+    }
+
+    .theme-switch input:checked + .theme-switch-track::after {
+      transform: translateX(20px);
+    }
+
+    .theme-switch input:focus-visible + .theme-switch-track {
+      outline: 2px solid var(--mutum-coral);
+      outline-offset: 2px;
+    }
+
+    .theme-switch:hover .theme-switch-track {
+      border-color: var(--mutum-coral);
+    }
+
+    .flow-nav {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .flow-tab {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 10px;
+      min-height: 64px;
+      padding: 10px 12px;
+      text-align: left;
+      background: var(--tab-bg);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      color: var(--muted);
+      box-shadow: none;
+    }
+
+    .flow-tab .step {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--control-bg);
+      color: var(--text);
+      font: 700 13px/1 var(--font-display);
+    }
+
+    .flow-tab strong {
+      display: block;
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.1;
+    }
+
+    .flow-tab small {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    .flow-tab.active {
+      background: var(--active-bg);
+      border-color: var(--active-bg);
+      color: var(--active-fg);
+      box-shadow: 0 14px 32px rgba(25, 25, 25, 0.16);
+    }
+
+    .flow-tab.active strong,
+    .flow-tab.active small {
+      color: var(--active-fg);
+    }
+
+    .flow-tab.active .step {
+      background: var(--mutum-red);
+      color: var(--mutum-cream);
+    }
+
+    .flow-status {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      min-height: 52px;
+      margin-bottom: 12px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--dock-bg);
+    }
+
+    .flow-status:has(.banner:empty) {
+      display: none;
+    }
+
+    .flow-status .banner {
+      margin: 0;
+    }
+
+    .flow-status-title {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .flow-status-title strong {
+      font-family: var(--font-display);
+      font-size: 17px;
+      letter-spacing: -0.015em;
+    }
+
+    .flow-status-title span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .flow-workspace {
+      display: grid;
+      gap: 12px;
+    }
+
+    .flow-view {
+      display: grid;
+      grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.3fr);
+      gap: 12px;
+      align-items: start;
+      animation: flow-enter 220ms var(--ease-out);
+    }
+
+    .flow-view[hidden] {
+      display: none;
+    }
+
+    .flow-view.wide {
+      grid-template-columns: minmax(360px, 1.35fr) minmax(320px, 0.85fr);
+    }
+
+    .flow-view.single {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .flow-stack {
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .flow-intro {
+      padding: 20px 22px;
+      border-radius: 16px;
+      background: var(--mutum-ink);
+      color: var(--mutum-bone);
+      overflow: hidden;
+      position: relative;
+      min-height: 134px;
+    }
+
+    .flow-intro::after {
+      content: "";
+      position: absolute;
+      right: -56px;
+      top: -70px;
+      width: 220px;
+      height: 220px;
+      background: url("/static/mutum-mark.svg") center/contain no-repeat;
+      opacity: 0.09;
+      pointer-events: none;
+    }
+
+    .flow-intro .eyebrow {
+      color: var(--mutum-coral);
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .flow-intro h2 {
+      margin: 0 0 8px;
+      font-family: var(--font-display);
+      font-size: clamp(24px, 2.6vw, 36px);
+      line-height: 1.06;
+      letter-spacing: -0.03em;
+      color: var(--mutum-cream);
+    }
+
+    .flow-intro p {
+      margin: 0;
+      max-width: 720px;
+      color: #b5afa4;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .panel {
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      border-color: var(--line);
+    }
+
+    .panel header {
+      padding: 14px 16px;
+      background: var(--panel-header-bg);
+      border-bottom-color: var(--line);
+    }
+
+    .panel h2 {
+      font-family: var(--font-display);
+      font-size: 15px;
+      letter-spacing: -0.01em;
+      text-transform: none;
+    }
+
+    .panel .body {
+      padding: 16px;
+    }
+
+    .segmented {
+      border-radius: 12px;
+      background: var(--control-bg);
+    }
+
+    .segmented button {
+      border-radius: 10px;
+    }
+
+    .segmented button.active {
+      border-color: var(--accent);
+      color: var(--accent-strong);
+    }
+
+    .badge {
+      min-height: 28px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .badge.ok {
+      border-color: rgba(63, 138, 91, 0.35);
+      color: var(--success-text);
+      background: var(--success-soft);
+    }
+
+    .badge.warn {
+      border-color: rgba(232, 163, 61, 0.42);
+      color: var(--warn-text);
+      background: var(--warn-soft);
+    }
+
+    .badge.danger {
+      border-color: rgba(237, 44, 39, 0.35);
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .stat {
+      min-height: 76px;
+      border-radius: 12px;
+      background: var(--soft);
+    }
+
+    .stat .value {
+      font-family: var(--font-display);
+      letter-spacing: -0.02em;
+    }
+
+    canvas {
+      border-radius: 16px;
+      background: var(--canvas-bg);
+      min-height: 360px;
+      height: min(58vh, 560px);
+    }
+
+    .console {
+      border-radius: 14px;
+      background: var(--console-bg);
+      color: var(--console-text);
+      border-color: #34322e;
+      font-family: var(--font-mono);
+    }
+
+    .flow-utility-panel .body {
+      display: grid;
+      gap: 12px;
+    }
+
+    .flow-primary-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .flow-primary-actions button:first-child {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--mutum-cream);
+      box-shadow: 0 8px 24px rgba(237, 44, 39, 0.18);
+    }
+
+    .map-editor-layout {
+      display: grid;
+      grid-template-columns: minmax(360px, 1.5fr) minmax(320px, 0.8fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .editor-canvas-wrap {
+      display: grid;
+      gap: 8px;
+    }
+
+    #editorCanvas {
+      width: 100%;
+      height: min(62vh, 620px);
+      min-height: 430px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .tool-grid button.active {
+      background: var(--active-bg);
+      border-color: var(--active-bg);
+      color: var(--active-fg);
+    }
+
+    .editor-summary {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .editor-summary strong {
+      display: block;
+      color: var(--text);
+      font-family: var(--font-display);
+      font-size: 18px;
+      margin-top: 2px;
+      letter-spacing: -0.02em;
+    }
+
+    .editor-result {
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .editor-result.ok {
+      border-color: rgba(63, 138, 91, 0.35);
+      background: var(--success-soft);
+      color: var(--success-text);
+    }
+
+    .editor-result.error {
+      border-color: rgba(237, 44, 39, 0.35);
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .editor-result.warning {
+      border-color: rgba(213, 138, 23, 0.35);
+      background: var(--warn-soft);
+      color: var(--warn-text);
+    }
+
+    @keyframes flow-enter {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1180px) {
+      .flow-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .flow-view,
+      .flow-view.wide {
+        grid-template-columns: 1fr;
+      }
+
+      .map-editor-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .flow-shell {
+        width: min(100vw - 18px, 720px);
+        padding-top: 8px;
+      }
+
+      .flow-topbar {
+        position: static;
+      }
+
+      .flow-nav {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-status {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-tab {
+        min-height: 56px;
+      }
+
+      #editorCanvas {
+        min-height: 320px;
+        height: 420px;
+      }
+
+      .tool-grid,
+      .editor-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
   </style>
 </head>
 <body>
@@ -688,6 +1459,12 @@
         <span>controle USB/Wi-Fi e telemetria</span>
       </div>
       <div class="badges">
+        <label class="theme-switch" title="Alternar tema">
+          <span aria-hidden="true">Claro</span>
+          <input id="themeToggleInput" type="checkbox" role="switch" aria-label="Usar modo escuro">
+          <span class="theme-switch-track" aria-hidden="true"></span>
+          <span aria-hidden="true">Escuro</span>
+        </label>
         <span id="connectionBadge" class="badge">desconectado</span>
         <span id="runBadge" class="badge">parado</span>
         <span id="jobBadge" class="badge">sem job</span>
@@ -784,16 +1561,22 @@
           <div class="body">
             <div class="form-grid three">
               <label>Alvo X (mm)
-                <input id="gxInput" type="number" step="10" value="700">
+                <input id="gxInput" type="number" step="10" min="-10000" max="10000" value="7000">
               </label>
               <label>Alvo Y (mm)
-                <input id="gyInput" type="number" step="10" value="0">
+                <input id="gyInput" type="number" step="10" min="-10000" max="10000" value="0">
               </label>
               <label>Trim
                 <input id="trimInput" type="number" step="0.01" value="0">
               </label>
               <label>Duracao (s)
-                <input id="durationInput" type="number" step="1" min="0" value="15">
+                <input id="durationInput" type="number" step="1" min="0" value="120">
+              </label>
+              <label>Velocidade
+                <select id="speedModeSelect">
+                  <option value="slow" selected>Lenta (3200)</option>
+                  <option value="normal">Normal (4500)</option>
+                </select>
               </label>
               <label>Modo
                 <select id="modeSelect">
@@ -811,13 +1594,13 @@
             <div class="actions">
               <button id="runBtn" class="primary" type="button">Iniciar</button>
               <button id="mapExploreBtn" type="button">Mapear A-&gt;B (auto)</button>
-              <button id="mapNavBtn" type="button">Navegar pelo mapa (A*)</button>
-              <button id="mapRoundtripBtn" type="button">Ir e voltar A*</button>
+              <button id="mapNavBtn" type="button">Rodar A* salvo</button>
+              <button id="mapRoundtripBtn" type="button">A* ida e volta</button>
               <button id="stopBtn" class="danger" type="button">Parar</button>
               <button id="deployBtn" type="button">Enviar + compilar</button>
               <button id="compileBtn" type="button">Compilar</button>
             </div>
-            <p class="hint">Use duracao 0 para rodar sem <code>timeout</code>. Para teste em bancada, comece com rodas suspensas. <strong>Mapear A-&gt;B (auto)</strong> gera/salva o mapa. <strong>Navegar pelo mapa</strong> faz A-&gt;B. <strong>Ir e voltar A*</strong> faz A-&gt;B-&gt;A usando o ultimo mapa salvo.</p>
+            <p class="hint">Use duracao 0 para rodar sem <code>timeout</code>. Para teste em bancada, comece com rodas suspensas. <strong>Iniciar</strong> roda A-&gt;B por navegacao tatil e odometria, sem mapa previo. <strong>A*</strong> usa mapa salvo apenas para comparacao.</p>
           </div>
         </section>
 
@@ -894,7 +1677,7 @@
               </div>
               <div class="stat">
                 <div class="label">Alvo</div>
-                <div id="targetValue" class="value">700,0</div>
+                <div id="targetValue" class="value">7000,0</div>
                 <div class="sub">mm</div>
               </div>
             </div>
@@ -1014,7 +1797,7 @@
               <span>Seed<strong id="simSeedValue">--</strong></span>
             </div>
             <div id="simFailureBox" class="console" style="height:116px;margin-top:10px"></div>
-            <p class="hint">A validacao local compila <code>khepera_gl.c</code>, carrega o JSON e usa o mesmo <code>controller_core.h</code> enviado ao robo.</p>
+            <p class="hint">A validacao local compila <code>khepera_gl.c</code> e roda o mesmo <code>controller_core.h</code> do robo. No modo tatil, o mapa completo so gera contatos e colisoes.</p>
           </div>
         </section>
 
@@ -1051,8 +1834,434 @@
       selectedWifiHost: localStorage.getItem("khepera.wifiHost") || "",
       wifiSetupResultShown: false,
       portsLoaded: false,
-      pollDelay: 650
+      pollDelay: 650,
+      mapEditor: {
+        name: "mapa-teste",
+        sessionId: "",
+        resolution: 50,
+        bounds: {minX: -300, maxX: 8000, minY: -1500, maxY: 1500},
+        start: {x: 0, y: 0},
+        goal: {x: 7000, y: 0},
+        tool: "occupied",
+        brush: 1,
+        cells: new Map(),
+        waypoints: [],
+        attemptedWaypoints: [],
+        distanceText: "",
+        statusText: "",
+        wallEntries: null,
+        animating: false,
+        robot: null,
+        dragging: false
+      }
     };
+
+    function cssValue(name, fallback) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+    }
+
+    function preferredTheme() {
+      const saved = localStorage.getItem("khepera.theme");
+      if (saved === "dark" || saved === "light") return saved;
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      return prefersDark ? "dark" : "light";
+    }
+
+    function applyTheme(theme) {
+      const normalized = theme === "dark" ? "dark" : "light";
+      document.documentElement.dataset.theme = normalized;
+      localStorage.setItem("khepera.theme", normalized);
+      const input = el("themeToggleInput");
+      if (input) {
+        input.checked = normalized === "dark";
+        input.setAttribute("aria-label", normalized === "dark" ? "Usar modo claro" : "Usar modo escuro");
+      }
+      window.requestAnimationFrame(() => {
+        drawMap(state.last || {goal: {x: 7000, y: 0}, trail: []});
+        drawEditorMap();
+      });
+    }
+
+    const flowPages = [
+      {
+        id: "prepare",
+        step: "01",
+        label: "Preparar",
+        hint: "Conexao, Wi-Fi e codigo",
+        title: "Prepare o robo antes de rodar",
+        desc: "Comece pelo cabo USB ou pelo IP Wi-Fi, configure a rede do Khepera e envie o codigo compilado. Esse e o caminho mais seguro antes de qualquer movimento."
+      },
+      {
+        id: "control",
+        step: "02",
+        label: "Operar",
+        hint: "Missao, teleop e dados",
+        title: "Rode a missao com telemetria na tela",
+        desc: "Defina o alvo, execute A-B, teste controle manual e acompanhe sensores, bateria, pose e estado do controlador em tempo real."
+      },
+      {
+        id: "editor",
+        step: "03",
+        label: "Criar mapas",
+        hint: "Desenhar, editar e emular",
+        title: "Teste cenarios sem dar mapa ao robo",
+        desc: "Crie obstaculos, ajuste inicio e alvo, emule o controlador com IR curto/quase-contato e use o A* apenas como comparacao idealizada."
+      },
+      {
+        id: "map",
+        step: "04",
+        label: "Mapear",
+        hint: "Trajetoria, grade e A*",
+        title: "Observe o mapa nascer durante a missao",
+        desc: "Rode A-B com o robo real, salve a grade criada pelas leituras IR e use o A* salvo apenas para diagnostico ou comparacao."
+      },
+      {
+        id: "sim",
+        step: "05",
+        label: "Simular",
+        hint: "Lotes OpenGL",
+        title: "Valide o controlador sem mapa previo",
+        desc: "Gere mundos, rode a validacao tatil em lote e confira chegada, colisao e timeout antes de levar ajustes para o hardware."
+      },
+      {
+        id: "settings",
+        step: "06",
+        label: "Ajustar",
+        hint: "Parametros e console",
+        title: "Ajuste fino e diagnostico",
+        desc: "Altere defines permitidos, recompile no robo e use o console apenas quando precisar investigar algo mais baixo nivel."
+      }
+    ];
+
+    function panelById(id) {
+      const node = el(id);
+      return node ? node.closest(".panel") : null;
+    }
+
+    function makeIntro(page) {
+      const intro = document.createElement("section");
+      intro.className = "flow-intro";
+      intro.innerHTML = `
+        <div class="eyebrow">Fluxo ${page.step}</div>
+        <h2>${page.title}</h2>
+        <p>${page.desc}</p>
+      `;
+      return intro;
+    }
+
+    function makeColumn(nodes) {
+      const col = document.createElement("div");
+      col.className = "flow-stack";
+      for (const node of nodes) {
+        if (node) col.appendChild(node);
+      }
+      return col;
+    }
+
+    function makeUtilityPanel(title, badge, bodyClass = "") {
+      const panel = document.createElement("section");
+      panel.className = "panel flow-utility-panel";
+      panel.innerHTML = `
+        <header>
+          <h2>${title}</h2>
+          <span class="badge">${badge}</span>
+        </header>
+        <div class="body ${bodyClass}"></div>
+      `;
+      return panel;
+    }
+
+    function makeMapEditorPanel() {
+      const panel = document.createElement("section");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <header>
+          <h2>Editor de mapas</h2>
+          <span id="editorModeBadge" class="badge">rascunho</span>
+        </header>
+        <div class="body map-editor-layout">
+          <div class="editor-canvas-wrap">
+            <canvas id="editorCanvas" width="960" height="640" aria-label="Editor de mapa"></canvas>
+            <div class="legend">
+              <span><i class="swatch occupied"></i>obstaculo</span>
+              <span><i class="swatch free"></i>livre/visitado</span>
+              <span><i class="swatch graph"></i>trajeto do robo</span>
+              <span><i class="swatch attempt"></i>A* parcial</span>
+              <span><i class="swatch"></i>inicio</span>
+              <span><i class="swatch goal"></i>alvo</span>
+            </div>
+            <div class="editor-summary">
+              <span>Obstaculos<strong id="editorObstacleValue">0</strong></span>
+              <span>Status<strong id="editorAttemptValue">--</strong></span>
+              <span>Pontos<strong id="editorPathValue">0</strong></span>
+              <span>Distancia<strong id="editorDistanceValue">--</strong></span>
+              <span>Contornos<strong id="editorWallValue">--</strong></span>
+            </div>
+          </div>
+
+          <div class="flow-stack">
+            <section class="panel" style="box-shadow:none">
+              <header>
+                <h2>Mapa salvo</h2>
+                <button id="editorRefreshMapsBtn" type="button">Atualizar</button>
+              </header>
+              <div class="body">
+                <label>Mapa para editar
+                  <select id="editorLoadSelect"></select>
+                </label>
+                <div class="actions">
+                  <button id="editorLoadMapBtn" type="button">Carregar</button>
+                  <button id="editorNewMapBtn" type="button">Novo mapa</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" style="box-shadow:none">
+              <header>
+                <h2>Dimensoes</h2>
+                <span class="badge">mm</span>
+              </header>
+              <div class="body">
+                <label>Nome
+                  <input id="editorNameInput" type="text" value="mapa-teste">
+                </label>
+                <div class="form-grid" style="margin-top:10px">
+                  <label>Resolucao
+                    <input id="editorResolutionInput" type="number" min="20" max="200" step="10" value="50">
+                  </label>
+                  <label>Pincel
+                    <input id="editorBrushInput" type="number" min="1" max="8" step="1" value="1">
+                  </label>
+                  <label>X min
+                    <input id="editorMinXInput" type="number" step="50" value="-300">
+                  </label>
+                  <label>X max
+                    <input id="editorMaxXInput" type="number" step="50" value="8000">
+                  </label>
+                  <label>Y min
+                    <input id="editorMinYInput" type="number" step="50" value="-1500">
+                  </label>
+                  <label>Y max
+                    <input id="editorMaxYInput" type="number" step="50" value="1500">
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" style="box-shadow:none">
+              <header>
+                <h2>Inicio e alvo</h2>
+                <span class="badge">A-B</span>
+              </header>
+              <div class="body">
+                <div class="form-grid">
+                  <label>Inicio X
+                    <input id="editorStartXInput" type="number" step="10" value="0">
+                  </label>
+                  <label>Inicio Y
+                    <input id="editorStartYInput" type="number" step="10" value="0">
+                  </label>
+                  <label>Alvo X
+                    <input id="editorGoalXInput" type="number" step="10" value="7000">
+                  </label>
+                  <label>Alvo Y
+                    <input id="editorGoalYInput" type="number" step="10" value="0">
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" style="box-shadow:none">
+              <header>
+                <h2>Ferramentas</h2>
+                <span class="badge">editar</span>
+              </header>
+              <div class="body">
+                <div class="tool-grid">
+                  <button class="active" type="button" data-editor-tool="occupied">Obstaculo</button>
+                  <button type="button" data-editor-tool="erase">Apagar</button>
+                  <button type="button" data-editor-tool="start">Inicio</button>
+                  <button type="button" data-editor-tool="goal">Alvo</button>
+                </div>
+                <div class="actions">
+                  <button id="editorEmulateBtn" class="primary" type="button">Emular robo real</button>
+                  <button id="editorAnalyzeBtn" type="button">Analisar A*</button>
+                  <button id="editorSaveBtn" type="button">Salvar grid</button>
+                  <button id="editorClearBtn" type="button">Limpar</button>
+                </div>
+                <div id="editorResult" class="editor-result">Controle tatil: mira B, recua no contato e mede o contorno pela odometria</div>
+              </div>
+            </section>
+          </div>
+        </div>
+      `;
+      return panel;
+    }
+
+    function moveButtons(panel, ids, hint) {
+      const body = panel.querySelector(".body");
+      const actions = document.createElement("div");
+      actions.className = "flow-primary-actions";
+      for (const id of ids) {
+        const button = el(id);
+        if (button) actions.appendChild(button);
+      }
+      body.appendChild(actions);
+      if (hint) {
+        const p = document.createElement("p");
+        p.className = "hint";
+        p.innerHTML = hint;
+        body.appendChild(p);
+      }
+      return panel;
+    }
+
+    function makeView(page, columns, extraClass = "") {
+      const view = document.createElement("section");
+      view.className = `flow-view ${extraClass}`.trim();
+      view.dataset.flowView = page.id;
+      view.id = `flow-${page.id}`;
+      for (let index = 0; index < columns.length; index += 1) {
+        const nodes = index === 0 ? [makeIntro(page), ...columns[index]] : columns[index];
+        view.appendChild(makeColumn(nodes));
+      }
+      return view;
+    }
+
+    function setActiveFlowView(viewId) {
+      const page = flowPages.find((item) => item.id === viewId) || flowPages[0];
+      state.activeFlowView = page.id;
+      for (const view of document.querySelectorAll("[data-flow-view]")) {
+        view.hidden = view.dataset.flowView !== page.id;
+      }
+      for (const tab of document.querySelectorAll("[data-view-target]")) {
+        tab.classList.toggle("active", tab.dataset.viewTarget === page.id);
+        tab.setAttribute("aria-selected", String(tab.dataset.viewTarget === page.id));
+      }
+      const title = document.querySelector(".flow-status-title strong");
+      const desc = document.querySelector(".flow-status-title span");
+      if (title) title.textContent = page.label;
+      if (desc) desc.textContent = page.hint;
+      if (page.id === "map") {
+        window.requestAnimationFrame(() => drawMap(state.last || {goal: {x: 7000, y: 0}, trail: []}));
+      }
+      if (page.id === "editor") {
+        window.requestAnimationFrame(drawEditorMap);
+      }
+    }
+
+    function buildFlowLayout() {
+      const shell = document.querySelector(".shell");
+      const oldGrid = shell ? shell.querySelector(".grid") : null;
+      if (!shell || !oldGrid || shell.dataset.flowReady === "1") return;
+      shell.dataset.flowReady = "1";
+      shell.classList.add("flow-shell");
+      const panels = {
+        connection: panelById("refreshPortsBtn"),
+        wifiSetup: panelById("wifiSetupBtn"),
+        mission: panelById("runBtn"),
+        manual: panelById("startManualBtn"),
+        telemetry: panelById("stateValue"),
+        sensors: panelById("sensorGrid"),
+        trajectory: panelById("mapCanvas"),
+        mapping: panelById("mapStartBtn"),
+        simulation: panelById("simBatchBtn"),
+        params: panelById("reloadDefinesBtn"),
+        console: panelById("sendCmdBtn")
+      };
+
+      const topbar = shell.querySelector(".topbar");
+      if (topbar) {
+        topbar.classList.add("flow-topbar");
+        const brand = topbar.querySelector(".brand");
+        if (brand && !brand.querySelector(".brand-mark")) {
+          const mark = document.createElement("span");
+          mark.className = "brand-mark";
+          mark.innerHTML = '<img src="/static/mutum-mark.svg" alt="">';
+          brand.insertBefore(mark, brand.firstChild);
+          const subtitle = [...brand.querySelectorAll("span")].find((item) => !item.classList.contains("brand-mark"));
+          if (subtitle) subtitle.textContent = "fluxo guiado para campo e simulacao";
+        }
+      }
+
+      const nav = document.createElement("nav");
+      nav.className = "flow-nav";
+      nav.setAttribute("aria-label", "Fluxo principal");
+      for (const page of flowPages) {
+        const tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = "flow-tab";
+        tab.dataset.viewTarget = page.id;
+        tab.setAttribute("role", "tab");
+        tab.innerHTML = `
+          <span class="step">${page.step}</span>
+          <span><strong>${page.label}</strong><small>${page.hint}</small></span>
+        `;
+        tab.addEventListener("click", () => setActiveFlowView(page.id));
+        nav.appendChild(tab);
+      }
+      topbar.insertAdjacentElement("afterend", nav);
+
+      const statusDock = document.createElement("section");
+      statusDock.className = "flow-status";
+      statusDock.innerHTML = `
+        <div class="flow-status-title">
+          <strong>Preparar</strong>
+          <span>Conexao, Wi-Fi e codigo</span>
+        </div>
+      `;
+      const statusMsg = el("statusMsg");
+      if (statusMsg) statusDock.appendChild(statusMsg);
+      nav.insertAdjacentElement("afterend", statusDock);
+
+      const codePanel = moveButtons(
+        makeUtilityPanel("Codigo no robo", "antes de pilotar"),
+        ["deployBtn", "compileBtn"],
+        "Envie e compile o <code>patrulha</code> antes de usar controle manual ou uma missao nova."
+      );
+      const deployBtn = el("deployBtn");
+      if (deployBtn) deployBtn.classList.add("primary");
+
+      const routePanel = moveButtons(
+        makeUtilityPanel("Diagnostico com mapa", "comparacao A*"),
+        ["mapExploreBtn", "mapNavBtn", "mapRoundtripBtn"],
+        "Essas acoes usam o alvo X/Y definido no card de missao. O mapa salvo ajuda a diagnosticar, mas o objetivo principal continua sendo A-B com sensores locais."
+      );
+      const exploreBtn = el("mapExploreBtn");
+      if (exploreBtn) exploreBtn.classList.add("primary");
+      const mapEditorPanel = makeMapEditorPanel();
+
+      const workspace = document.createElement("div");
+      workspace.className = "flow-workspace";
+      oldGrid.replaceWith(workspace);
+
+      const views = [
+        makeView(flowPages[0], [
+          [panels.connection, codePanel],
+          [panels.wifiSetup]
+        ]),
+        makeView(flowPages[1], [
+          [panels.mission, panels.manual],
+          [panels.telemetry, panels.sensors]
+        ]),
+        makeView(flowPages[2], [
+          [mapEditorPanel]
+        ], "single"),
+        makeView(flowPages[3], [
+          [panels.trajectory],
+          [routePanel, panels.mapping]
+        ], "wide"),
+        makeView(flowPages[4], [
+          [panels.simulation]
+        ], "single"),
+        makeView(flowPages[5], [
+          [panels.params],
+          [panels.console]
+        ])
+      ];
+      views.forEach((view) => workspace.appendChild(view));
+      setActiveFlowView("prepare");
+    }
 
     const sensors = [
       ["BL", "traseiro esq."],
@@ -1088,6 +2297,30 @@
       return `${Number(value).toFixed(digits)}${suffix}`;
     }
 
+    function controllerStateLabel(rawState, running) {
+      const raw = String(rawState || "");
+      if (!raw) return running ? "Em movimento" : "Parado";
+      const parts = raw.split("-");
+      const sideCode = ["E", "D"].includes(parts[parts.length - 1]) ? parts.pop() : "";
+      const base = parts.join("-");
+      const labels = {
+        GOAL: "Rumo ao alvo",
+        RECUO: "Recuando",
+        GIRO: "Escolhendo lado",
+        CONTORNO: "Contornando",
+        ALINHA: "Alinhando",
+        TESTE: "Confirmando passagem",
+        "BEIRADA-RECUO": "Recuando da borda",
+        "BEIRADA-GIRO": "Saindo da borda",
+        BLOQUEADO: "Bloqueado",
+        PARADO: "Parado",
+        MANUAL: "Controle manual",
+      };
+      const label = labels[base] || base || raw;
+      if (!sideCode || !["GIRO", "CONTORNO", "ALINHA", "TESTE"].includes(base)) return label;
+      return `${label} ${sideCode === "E" ? "pela esquerda" : "pela direita"}`;
+    }
+
     async function api(url, options = {}) {
       const headers = options.body ? {"Content-Type": "application/json"} : {};
       const response = await fetch(url, {...options, headers: {...headers, ...(options.headers || {})}});
@@ -1098,9 +2331,643 @@
         data = {};
       }
       if (!response.ok || data.ok === false) {
-        throw new Error(data.error || `falha HTTP ${response.status}`);
+        const error = new Error(data.error || `falha HTTP ${response.status}`);
+        error.status = response.status;
+        error.data = data;
+        throw error;
       }
       return data;
+    }
+
+    function editorKey(i, j) {
+      return `${i},${j}`;
+    }
+
+    function editorSetResult(message, kind = "") {
+      const box = el("editorResult");
+      if (!box) return;
+      box.textContent = message || "";
+      box.className = kind ? `editor-result ${kind}` : "editor-result";
+    }
+
+    function editorClearPlan() {
+      const editor = state.mapEditor;
+      editor.waypoints = [];
+      editor.attemptedWaypoints = [];
+      editor.distanceText = "";
+      editor.statusText = "";
+      editor.wallEntries = null;
+      editor.animating = false;
+      editor.robot = null;
+    }
+
+    function editorReadNumber(id, fallback) {
+      const node = el(id);
+      const value = node ? Number(node.value) : NaN;
+      return Number.isFinite(value) ? value : fallback;
+    }
+
+    function editorReadForm() {
+      const editor = state.mapEditor;
+      editor.name = (el("editorNameInput")?.value || "mapa-teste").trim() || "mapa-teste";
+      editor.resolution = Math.max(20, Math.min(200, editorReadNumber("editorResolutionInput", editor.resolution)));
+      editor.brush = Math.max(1, Math.min(8, Math.round(editorReadNumber("editorBrushInput", editor.brush))));
+      editor.bounds = {
+        minX: editorReadNumber("editorMinXInput", editor.bounds.minX),
+        maxX: editorReadNumber("editorMaxXInput", editor.bounds.maxX),
+        minY: editorReadNumber("editorMinYInput", editor.bounds.minY),
+        maxY: editorReadNumber("editorMaxYInput", editor.bounds.maxY),
+      };
+      if (editor.bounds.maxX <= editor.bounds.minX + editor.resolution) {
+        editor.bounds.maxX = editor.bounds.minX + editor.resolution * 10;
+      }
+      if (editor.bounds.maxY <= editor.bounds.minY + editor.resolution) {
+        editor.bounds.maxY = editor.bounds.minY + editor.resolution * 10;
+      }
+      editor.start = {
+        x: editorReadNumber("editorStartXInput", editor.start.x),
+        y: editorReadNumber("editorStartYInput", editor.start.y),
+      };
+      editor.goal = {
+        x: editorReadNumber("editorGoalXInput", editor.goal.x),
+        y: editorReadNumber("editorGoalYInput", editor.goal.y),
+      };
+    }
+
+    function editorWriteForm() {
+      const editor = state.mapEditor;
+      const set = (id, value) => {
+        const node = el(id);
+        if (node) node.value = value;
+      };
+      set("editorNameInput", editor.name);
+      set("editorResolutionInput", editor.resolution);
+      set("editorBrushInput", editor.brush);
+      set("editorMinXInput", editor.bounds.minX);
+      set("editorMaxXInput", editor.bounds.maxX);
+      set("editorMinYInput", editor.bounds.minY);
+      set("editorMaxYInput", editor.bounds.maxY);
+      set("editorStartXInput", Math.round(editor.start.x));
+      set("editorStartYInput", Math.round(editor.start.y));
+      set("editorGoalXInput", Math.round(editor.goal.x));
+      set("editorGoalYInput", Math.round(editor.goal.y));
+      const badge = el("editorModeBadge");
+      if (badge) badge.textContent = editor.sessionId || "rascunho";
+    }
+
+    function editorInferBounds(grid, start, goal) {
+      const r = Number(grid.resolution_mm || 50);
+      const xs = [start.x, goal.x];
+      const ys = [start.y, goal.y];
+      for (const cell of grid.cells || []) {
+        xs.push(Number(cell.i) * r, (Number(cell.i) + 1) * r);
+        ys.push(Number(cell.j) * r, (Number(cell.j) + 1) * r);
+      }
+      const margin = Math.max(300, r * 6);
+      return {
+        minX: Math.floor((Math.min(...xs) - margin) / r) * r,
+        maxX: Math.ceil((Math.max(...xs) + margin) / r) * r,
+        minY: Math.floor((Math.min(...ys) - margin) / r) * r,
+        maxY: Math.ceil((Math.max(...ys) + margin) / r) * r,
+      };
+    }
+
+    function editorLoadGrid(grid = {}, sessionId = "") {
+      const editor = state.mapEditor;
+      editor.sessionId = sessionId || grid.session_id || "";
+      editor.name = grid.name || editor.sessionId || "mapa-teste";
+      editor.resolution = Number(grid.resolution_mm || 50);
+      editor.start = grid.start || {x: 0, y: 0};
+      editor.goal = grid.goal || {x: 7000, y: 0};
+      if (Array.isArray(grid.bounds) && grid.bounds.length >= 4) {
+        editor.bounds = {minX: grid.bounds[0], maxX: grid.bounds[1], minY: grid.bounds[2], maxY: grid.bounds[3]};
+      } else if (grid.bounds && typeof grid.bounds === "object") {
+        editor.bounds = {...editor.bounds, ...grid.bounds};
+      } else {
+        editor.bounds = editorInferBounds(grid, editor.start, editor.goal);
+      }
+      editor.cells = new Map();
+      for (const cell of grid.cells || []) {
+        const stateName = cell.state || "occupied";
+        if (["occupied", "free", "visited"].includes(stateName)) {
+          editor.cells.set(editorKey(Number(cell.i), Number(cell.j)), stateName);
+        }
+      }
+      editorClearPlan();
+      editorWriteForm();
+      drawEditorMap();
+    }
+
+    function editorGridPayload() {
+      editorReadForm();
+      const editor = state.mapEditor;
+      const r = editor.resolution;
+      const cells = [];
+      for (const [key, stateName] of editor.cells.entries()) {
+        const [i, j] = key.split(",").map(Number);
+        cells.push({i, j, state: stateName});
+      }
+      cells.sort((a, b) => a.i - b.i || a.j - b.j);
+      return {
+        name: editor.name,
+        resolution_mm: r,
+        bounds: editor.bounds,
+        start: editor.start,
+        goal: editor.goal,
+        cells,
+      };
+    }
+
+    function editorMetrics(canvas) {
+      const rect = canvas.getBoundingClientRect();
+      const editor = state.mapEditor;
+      const bounds = editor.bounds;
+      const width = Math.max(1, rect.width);
+      const height = Math.max(1, rect.height);
+      const pad = 28;
+      const sx = (width - pad * 2) / Math.max(1, bounds.maxX - bounds.minX);
+      const sy = (height - pad * 2) / Math.max(1, bounds.maxY - bounds.minY);
+      const scale = Math.max(0.02, Math.min(sx, sy));
+      const drawW = (bounds.maxX - bounds.minX) * scale;
+      const drawH = (bounds.maxY - bounds.minY) * scale;
+      return {
+        width,
+        height,
+        scale,
+        ox: (width - drawW) / 2,
+        oy: (height - drawH) / 2,
+        bounds,
+      };
+    }
+
+    function editorToScreen(x, y, metrics) {
+      return [
+        metrics.ox + (x - metrics.bounds.minX) * metrics.scale,
+        metrics.height - (metrics.oy + (y - metrics.bounds.minY) * metrics.scale),
+      ];
+    }
+
+    function editorFromScreen(x, y, metrics) {
+      return {
+        x: metrics.bounds.minX + (x - metrics.ox) / metrics.scale,
+        y: metrics.bounds.minY + (metrics.height - metrics.oy - y) / metrics.scale,
+      };
+    }
+
+    function editorCellFromEvent(event) {
+      const canvas = el("editorCanvas");
+      if (!canvas) return null;
+      const rect = canvas.getBoundingClientRect();
+      const metrics = editorMetrics(canvas);
+      const point = editorFromScreen(event.clientX - rect.left, event.clientY - rect.top, metrics);
+      const r = state.mapEditor.resolution;
+      return {i: Math.floor(point.x / r), j: Math.floor(point.y / r), point};
+    }
+
+    function editorPaintAt(event) {
+      const hit = editorCellFromEvent(event);
+      if (!hit) return;
+      editorReadForm();
+      const editor = state.mapEditor;
+      const r = editor.resolution;
+      const cx = (hit.i + 0.5) * r;
+      const cy = (hit.j + 0.5) * r;
+      if (editor.tool === "start") {
+        editor.start = {x: Math.round(cx), y: Math.round(cy)};
+        editorClearPlan();
+        editorWriteForm();
+        drawEditorMap();
+        return;
+      }
+      if (editor.tool === "goal") {
+        editor.goal = {x: Math.round(cx), y: Math.round(cy)};
+        editorClearPlan();
+        editorWriteForm();
+        drawEditorMap();
+        return;
+      }
+      const radius = Math.max(0, editor.brush - 1);
+      for (let di = -radius; di <= radius; di += 1) {
+        for (let dj = -radius; dj <= radius; dj += 1) {
+          if (Math.hypot(di, dj) > radius + 0.4) continue;
+          const key = editorKey(hit.i + di, hit.j + dj);
+          if (editor.tool === "erase") editor.cells.delete(key);
+          else editor.cells.set(key, editor.tool);
+        }
+      }
+      editorClearPlan();
+      drawEditorMap();
+    }
+
+    function editorUpdateSummary(distanceText = null) {
+      const editor = state.mapEditor;
+      let occupied = 0;
+      for (const value of editor.cells.values()) {
+        if (value === "occupied") occupied += 1;
+      }
+      if (distanceText !== null) editor.distanceText = distanceText;
+      setText("editorObstacleValue", occupied);
+      setText("editorAttemptValue", editor.statusText || (editor.attemptedWaypoints.length ? "A* parcial" : "--"));
+      setText("editorPathValue", editor.waypoints.length);
+      setText("editorDistanceValue", editor.distanceText || (editor.waypoints.length ? "emulado" : "--"));
+      setText("editorWallValue", editor.wallEntries === null ? "--" : editor.wallEntries);
+    }
+
+    function drawEditorMap() {
+      const canvas = el("editorCanvas");
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      editorReadForm();
+      const {w, h, dpr} = resizeCanvas(canvas);
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, w, h);
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      const metrics = editorMetrics(canvas);
+      const editor = state.mapEditor;
+      const r = editor.resolution;
+      const colors = {
+        canvasBg: cssValue("--canvas-bg", "#fff"),
+        grid: cssValue("--canvas-grid", "#ebe7de"),
+        axis: cssValue("--canvas-axis", "#c9c2b5"),
+        obstacle: cssValue("--map-obstacle", "rgba(237, 44, 39, 0.58)"),
+        visited: cssValue("--map-visited", "rgba(31, 93, 58, 0.34)"),
+        free: cssValue("--map-free", "rgba(63, 138, 91, 0.18)"),
+        attempt: cssValue("--attempt-color", "#d58a17"),
+        path: cssValue("--path-color", "#2D6A8C"),
+        markerFill: cssValue("--marker-fill", "#fff"),
+        robot: cssValue("--robot-fill", "#191919"),
+        start: cssValue("--start-color", "#1F5D3A"),
+        goal: cssValue("--goal-color", "#ED2C27"),
+      };
+
+      ctx.fillStyle = colors.canvasBg;
+      ctx.fillRect(0, 0, metrics.width, metrics.height);
+
+      ctx.strokeStyle = colors.grid;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = Math.ceil(metrics.bounds.minX / r) * r; x <= metrics.bounds.maxX; x += r) {
+        const [sx] = editorToScreen(x, 0, metrics);
+        ctx.moveTo(sx, metrics.oy);
+        ctx.lineTo(sx, metrics.height - metrics.oy);
+      }
+      for (let y = Math.ceil(metrics.bounds.minY / r) * r; y <= metrics.bounds.maxY; y += r) {
+        const [, sy] = editorToScreen(0, y, metrics);
+        ctx.moveTo(metrics.ox, sy);
+        ctx.lineTo(metrics.width - metrics.ox, sy);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = colors.axis;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (metrics.bounds.minY <= 0 && metrics.bounds.maxY >= 0) {
+        const [, y0] = editorToScreen(0, 0, metrics);
+        ctx.moveTo(metrics.ox, y0);
+        ctx.lineTo(metrics.width - metrics.ox, y0);
+      }
+      if (metrics.bounds.minX <= 0 && metrics.bounds.maxX >= 0) {
+        const [x0] = editorToScreen(0, 0, metrics);
+        ctx.moveTo(x0, metrics.oy);
+        ctx.lineTo(x0, metrics.height - metrics.oy);
+      }
+      ctx.stroke();
+
+      for (const [key, stateName] of editor.cells.entries()) {
+        const [i, j] = key.split(",").map(Number);
+        const p0 = editorToScreen(i * r, j * r, metrics);
+        const p1 = editorToScreen((i + 1) * r, (j + 1) * r, metrics);
+        const x = Math.min(p0[0], p1[0]);
+        const y = Math.min(p0[1], p1[1]);
+        const cw = Math.abs(p1[0] - p0[0]);
+        const ch = Math.abs(p1[1] - p0[1]);
+        ctx.fillStyle = stateName === "occupied" ? colors.obstacle :
+          stateName === "visited" ? colors.visited : colors.free;
+        ctx.fillRect(x, y, Math.max(1, cw), Math.max(1, ch));
+      }
+
+      const attemptedPath = [editor.start, ...editor.attemptedWaypoints.map(([x, y]) => ({x, y}))];
+      if (attemptedPath.length > 1) {
+        ctx.strokeStyle = colors.attempt;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 7]);
+        ctx.beginPath();
+        attemptedPath.forEach((point, index) => {
+          const [x, y] = editorToScreen(point.x, point.y, metrics);
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const lastAttempt = attemptedPath[attemptedPath.length - 1];
+        const [ax, ay] = editorToScreen(lastAttempt.x, lastAttempt.y, metrics);
+        ctx.fillStyle = colors.attempt;
+        ctx.beginPath();
+        ctx.arc(ax, ay, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const path = [editor.start, ...editor.waypoints.map(([x, y]) => ({x, y}))];
+      if (path.length > 1) {
+        ctx.strokeStyle = colors.path;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        path.forEach((point, index) => {
+          const [x, y] = editorToScreen(point.x, point.y, metrics);
+          if (index === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        for (const point of path.slice(1)) {
+          const [x, y] = editorToScreen(point.x, point.y, metrics);
+          ctx.fillStyle = colors.path;
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      const drawMarker = (point, color, label) => {
+        const [x, y] = editorToScreen(point.x, point.y, metrics);
+        ctx.fillStyle = colors.markerFill;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.font = "700 12px Manrope, sans-serif";
+        ctx.fillText(label, x + 10, y - 10);
+      };
+      drawMarker(editor.start, colors.start, "A");
+      drawMarker(editor.goal, colors.goal, "B");
+
+      if (editor.robot) {
+        const [x, y] = editorToScreen(editor.robot.x, editor.robot.y, metrics);
+        ctx.fillStyle = colors.robot;
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+      editorUpdateSummary();
+    }
+
+    function editorAnimatePath(distanceMm) {
+      const editor = state.mapEditor;
+      const points = [editor.start, ...editor.waypoints.map(([x, y]) => ({x, y}))];
+      if (points.length < 2) return;
+      const segments = [];
+      let total = 0;
+      for (let i = 0; i < points.length - 1; i += 1) {
+        const a = points[i];
+        const b = points[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        segments.push({a, b, len});
+        total += len;
+      }
+      const duration = Math.max(1200, Math.min(9000, total / 0.45));
+      const started = performance.now();
+      editor.animating = true;
+      const tick = (now) => {
+        const progress = Math.min(1, (now - started) / duration);
+        let traveled = total * progress;
+        let current = segments[segments.length - 1];
+        for (const segment of segments) {
+          if (traveled <= segment.len) {
+            current = segment;
+            break;
+          }
+          traveled -= segment.len;
+        }
+        const t = current.len ? Math.max(0, Math.min(1, traveled / current.len)) : 1;
+        editor.robot = {
+          x: current.a.x + (current.b.x - current.a.x) * t,
+          y: current.a.y + (current.b.y - current.a.y) * t,
+        };
+        drawEditorMap();
+        editorUpdateSummary(`${Math.round(distanceMm)} mm`);
+        if (progress < 1 && editor.animating) {
+          window.requestAnimationFrame(tick);
+        } else {
+          editor.animating = false;
+          editor.robot = points[points.length - 1];
+          drawEditorMap();
+          editorUpdateSummary(`${Math.round(distanceMm)} mm`);
+        }
+      };
+      window.requestAnimationFrame(tick);
+    }
+
+    async function editorRefreshSavedMaps() {
+      const select = el("editorLoadSelect");
+      if (!select) return;
+      try {
+        const data = await api("/api/editor/maps");
+        const maps = data.maps || [];
+        select.innerHTML = maps.length
+          ? maps.map((m) => `<option value="${m.session_id}">${m.session_id} (${m.cell_count || 0} celulas)</option>`).join("")
+          : '<option value="">nenhum mapa salvo</option>';
+      } catch (error) {
+        select.innerHTML = '<option value="">falha ao listar mapas</option>';
+        editorSetResult(error.message, "error");
+      }
+    }
+
+    async function editorLoadSelectedMap() {
+      const sessionId = el("editorLoadSelect")?.value;
+      if (!sessionId) return;
+      try {
+        const data = await api(`/api/editor/maps/${encodeURIComponent(sessionId)}`);
+        editorLoadGrid(data.grid || {}, data.session_id || sessionId);
+        editorSetResult(`Mapa ${sessionId} carregado para edicao`, "ok");
+        setActiveFlowView("editor");
+      } catch (error) {
+        editorSetResult(error.message, "error");
+      }
+    }
+
+    function editorNewMap() {
+      state.mapEditor = {
+        ...state.mapEditor,
+        name: "mapa-teste",
+        sessionId: "",
+        resolution: 50,
+        bounds: {minX: -300, maxX: 8000, minY: -1500, maxY: 1500},
+        start: {x: 0, y: 0},
+        goal: {x: 7000, y: 0},
+        cells: new Map(),
+        waypoints: [],
+        attemptedWaypoints: [],
+        distanceText: "",
+        statusText: "",
+        wallEntries: null,
+        robot: null,
+        animating: false,
+      };
+      editorWriteForm();
+      editorSetResult("Mapa novo pronto para desenho");
+      drawEditorMap();
+    }
+
+    function editorClearCells() {
+      state.mapEditor.cells.clear();
+      editorClearPlan();
+      editorSetResult("Celulas limpas. Inicio e alvo foram mantidos");
+      drawEditorMap();
+    }
+
+    async function editorSaveMap() {
+      try {
+        const payload = editorGridPayload();
+        const data = await api("/api/editor/save", {
+          method: "POST",
+          body: JSON.stringify({
+            name: payload.name,
+            session_id: state.mapEditor.sessionId,
+            grid: payload,
+          }),
+        });
+        state.mapEditor.sessionId = data.session_id;
+        editorWriteForm();
+        editorSetResult(`Grid salvo em interface/maps/${data.session_id}/grid.json`, "ok");
+        await editorRefreshSavedMaps();
+      } catch (error) {
+        editorSetResult(error.message, "error");
+      }
+    }
+
+    async function editorEmulateMap() {
+      try {
+        const payload = editorGridPayload();
+        editorSetResult("Simulando robo com IR curto/quase-contato...");
+        const data = await api("/api/editor/simulate", {
+          method: "POST",
+          body: JSON.stringify({grid: payload, start: payload.start, goal: payload.goal}),
+        });
+        const trail = data.trail || [];
+        state.mapEditor.waypoints = trail.slice(1);
+        state.mapEditor.attemptedWaypoints = [];
+        state.mapEditor.statusText = data.status || "--";
+        state.mapEditor.distanceText = `${Math.round(data.distance_mm || 0)} mm`;
+        state.mapEditor.wallEntries = Number.isFinite(Number(data.wall_entries)) ? Number(data.wall_entries) : 0;
+        const last = trail[trail.length - 1];
+        state.mapEditor.robot = last ? {x: last[0], y: last[1]} : {...state.mapEditor.start};
+        drawEditorMap();
+        if (data.status === "ARRIVED") {
+          editorSetResult(`Chegou sem mapa previo: navegacao tatil, ${Math.round(data.distance_mm)} mm em ${Math.round(data.time_s)} s, ${data.wall_entries} obstaculo(s).`, "ok");
+          editorAnimatePath(data.distance_mm || 0);
+        } else if (data.status === "COLLISION") {
+          editorSetResult(`Contato nao recuperado. Menor distancia ao alvo: ${Math.round(data.min_goal_mm)} mm, ${data.wall_entries} obstaculo(s).`, "error");
+        } else {
+          editorSetResult(`Timeout da navegacao tatil. Menor distancia ao alvo: ${Math.round(data.min_goal_mm)} mm, ${data.wall_entries} obstaculo(s).`, "warning");
+        }
+      } catch (error) {
+        editorClearPlan();
+        drawEditorMap();
+        editorSetResult(error.message, "error");
+      }
+    }
+
+    async function editorAnalyzeMap() {
+      try {
+        const payload = editorGridPayload();
+        const data = await api("/api/editor/plan", {
+          method: "POST",
+          body: JSON.stringify({grid: payload, start: payload.start, goal: payload.goal}),
+        });
+        state.mapEditor.waypoints = data.waypoints || [];
+        state.mapEditor.attemptedWaypoints = [];
+        state.mapEditor.statusText = "A*";
+        state.mapEditor.distanceText = `${Math.round(data.distance_mm || 0)} mm`;
+        state.mapEditor.wallEntries = null;
+        state.mapEditor.robot = {...state.mapEditor.start};
+        editorSetResult(`A* ideal encontrou caminho com mapa completo: ${state.mapEditor.waypoints.length} ponto(s), ${Math.round(data.distance_mm)} mm.`, "ok");
+        editorAnimatePath(data.distance_mm || 0);
+      } catch (error) {
+        const data = error.data || {};
+        state.mapEditor.waypoints = [];
+        state.mapEditor.attemptedWaypoints = data.attempted_waypoints || [];
+        state.mapEditor.statusText = state.mapEditor.attemptedWaypoints.length ? "A* parcial" : "";
+        state.mapEditor.wallEntries = null;
+        const last = state.mapEditor.attemptedWaypoints[state.mapEditor.attemptedWaypoints.length - 1];
+        state.mapEditor.robot = last ? {x: last[0], y: last[1]} : null;
+        const attemptDistance = Math.round(data.attempted_distance_mm || 0);
+        state.mapEditor.distanceText = attemptDistance ? `${attemptDistance} mm parcial` : "";
+        drawEditorMap();
+        if (data.attempted_waypoints) {
+          const remaining = Math.round(data.distance_to_goal_mm || 0);
+          editorSetResult(
+            `Sem caminho completo. Mostrei a melhor tentativa: ${state.mapEditor.attemptedWaypoints.length} waypoint(s), ainda a ${remaining} mm do alvo.`,
+            "warning"
+          );
+        } else {
+          editorSetResult(error.message, "error");
+        }
+      }
+    }
+
+    function editorSetTool(tool) {
+      state.mapEditor.tool = tool;
+      for (const btn of document.querySelectorAll("[data-editor-tool]")) {
+        btn.classList.toggle("active", btn.dataset.editorTool === tool);
+      }
+    }
+
+    function bindEditorEvents() {
+      const ids = [
+        "editorNameInput", "editorResolutionInput", "editorBrushInput",
+        "editorMinXInput", "editorMaxXInput", "editorMinYInput", "editorMaxYInput",
+        "editorStartXInput", "editorStartYInput", "editorGoalXInput", "editorGoalYInput",
+      ];
+      for (const id of ids) {
+        const node = el(id);
+        if (!node) continue;
+        node.addEventListener("input", () => {
+          editorClearPlan();
+          drawEditorMap();
+        });
+      }
+      for (const btn of document.querySelectorAll("[data-editor-tool]")) {
+        btn.addEventListener("click", () => editorSetTool(btn.dataset.editorTool));
+      }
+      el("editorRefreshMapsBtn").addEventListener("click", editorRefreshSavedMaps);
+      el("editorLoadMapBtn").addEventListener("click", editorLoadSelectedMap);
+      el("editorNewMapBtn").addEventListener("click", editorNewMap);
+      el("editorSaveBtn").addEventListener("click", editorSaveMap);
+      el("editorEmulateBtn").addEventListener("click", editorEmulateMap);
+      el("editorAnalyzeBtn").addEventListener("click", editorAnalyzeMap);
+      el("editorClearBtn").addEventListener("click", editorClearCells);
+
+      const canvas = el("editorCanvas");
+      canvas.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        canvas.setPointerCapture(event.pointerId);
+        state.mapEditor.dragging = true;
+        editorPaintAt(event);
+      });
+      canvas.addEventListener("pointermove", (event) => {
+        if (!state.mapEditor.dragging) return;
+        event.preventDefault();
+        editorPaintAt(event);
+      });
+      const end = () => {
+        state.mapEditor.dragging = false;
+      };
+      canvas.addEventListener("pointerup", end);
+      canvas.addEventListener("pointercancel", end);
+      canvas.addEventListener("lostpointercapture", end);
+    }
+
+    function initMapEditor() {
+      editorWriteForm();
+      editorSetTool(state.mapEditor.tool);
+      editorRefreshSavedMaps();
+      drawEditorMap();
     }
 
     function restoreConnectionPrefs() {
@@ -1530,18 +3397,19 @@
 
     function updateTelemetry(data) {
       const t = data.telem || {};
-      setText("stateValue", t.state || (data.running ? "RUN" : "--"));
+      setText("stateValue", controllerStateLabel(t.state, data.running));
       setText("poseValue", `x ${fmt(t.x)} mm / y ${fmt(t.y)} mm / th ${fmt(t.th)} deg`);
       if (data.manual || t.state === "MANUAL") {
         setText("goalValue", fmt(t.fwd, 2));
         setText("lineValue", `diff ${fmt(t.diff, 2)}`);
         setText("headingValue", t.guard || "--");
+        setText("frontValue", `F ${fmt(t.F)} / FL ${fmt(t.FL)} / FR ${fmt(t.FR)}`);
       } else {
         setText("goalValue", fmt(t.d_goal, 0, " mm"));
         setText("lineValue", `linha ${fmt(t.d_line, 0, " mm")}`);
-        setText("headingValue", fmt(t.herr, 0, " deg"));
+        setText("headingValue", fmt(t.th, 0, " deg"));
+        setText("frontValue", `alvo ${fmt(t.heading_target, 0, " deg")} / erro ${fmt(t.herr, 0, " deg")}`);
       }
-      setText("frontValue", `F ${fmt(t.F)} / FL ${fmt(t.FL)} / FR ${fmt(t.FR)}`);
       setText("groundValue", fmt(t.chao));
       setText("trailValue", String((data.trail || []).length));
       setText("targetValue", `${fmt(data.goal?.x)} , ${fmt(data.goal?.y)}`);
@@ -1622,11 +3490,11 @@
       const pad = 34;
       const trail = data.trail || [];
       const t = data.telem || {};
-      const goal = data.goal || {x: 700, y: 0};
+      const goal = data.goal || {x: 7000, y: 0};
       const map = data.map || {};
       const mapCells = map.cells || [];
       const graph = map.graph || {nodes: [], edges: []};
-      const points = [[0, 0], [Number(goal.x) || 700, Number(goal.y) || 0], ...trail];
+      const points = [[0, 0], [Number(goal.x) || 7000, Number(goal.y) || 0], ...trail];
       for (const cell of mapCells) {
         points.push([Number(cell.x) || 0, Number(cell.y) || 0]);
       }
@@ -1650,11 +3518,25 @@
       const ox = (width - scale * (maxX - minX)) / 2;
       const oy = (height - scale * (maxY - minY)) / 2;
       const toScreen = ([x, y]) => [ox + (x - minX) * scale, height - (oy + (y - minY) * scale)];
+      const colors = {
+        canvasBg: cssValue("--canvas-bg", "#fbfdfb"),
+        grid: cssValue("--canvas-grid", "#e1e7e1"),
+        axis: cssValue("--canvas-axis", "#aeb9b1"),
+        obstacle: cssValue("--map-obstacle", "rgba(200, 95, 85, 0.58)"),
+        visited: cssValue("--map-visited", "rgba(22, 122, 91, 0.28)"),
+        free: cssValue("--map-free", "rgba(111, 164, 128, 0.20)"),
+        markerFill: cssValue("--marker-fill", "#ffffff"),
+        start: cssValue("--start-color", "#167a5b"),
+        goal: cssValue("--goal-color", "#b42318"),
+        path: cssValue("--path-color", "#315f8a"),
+        robot: cssValue("--robot-fill", "#1d2520"),
+        label: cssValue("--canvas-label", "#627067"),
+      };
 
-      ctx.fillStyle = "#fbfdfb";
+      ctx.fillStyle = colors.canvasBg;
       ctx.fillRect(0, 0, width, height);
 
-      ctx.strokeStyle = "#e1e7e1";
+      ctx.strokeStyle = colors.grid;
       ctx.lineWidth = 1;
       ctx.beginPath();
       const gridStep = 100;
@@ -1675,17 +3557,17 @@
         for (const cell of mapCells) {
           const [x, y] = toScreen([Number(cell.x), Number(cell.y)]);
           if (cell.state === "occupied") {
-            ctx.fillStyle = "rgba(200, 95, 85, 0.58)";
+            ctx.fillStyle = colors.obstacle;
           } else if (cell.state === "visited") {
-            ctx.fillStyle = "rgba(22, 122, 91, 0.28)";
+            ctx.fillStyle = colors.visited;
           } else {
-            ctx.fillStyle = "rgba(111, 164, 128, 0.20)";
+            ctx.fillStyle = colors.free;
           }
           ctx.fillRect(x - cellPx / 2, y - cellPx / 2, cellPx, cellPx);
         }
       }
 
-      ctx.strokeStyle = "#aeb9b1";
+      ctx.strokeStyle = colors.axis;
       ctx.setLineDash([6, 5]);
       ctx.beginPath();
       const a = toScreen([0, 0]);
@@ -1697,7 +3579,7 @@
 
       if ((graph.edges || []).length && (graph.nodes || []).length) {
         const nodeById = new Map((graph.nodes || []).map(n => [n.id, n]));
-        ctx.strokeStyle = "rgba(49, 95, 138, 0.72)";
+        ctx.strokeStyle = colors.path;
         ctx.lineWidth = 1.7;
         ctx.beginPath();
         for (const edge of graph.edges || []) {
@@ -1713,7 +3595,7 @@
 
         for (const node of graph.nodes || []) {
           const p = toScreen([node.x, node.y]);
-          ctx.fillStyle = node.kind === "start" ? "#167a5b" : "#315f8a";
+          ctx.fillStyle = node.kind === "start" ? colors.start : colors.path;
           ctx.beginPath();
           ctx.arc(p[0], p[1], 4, 0, Math.PI * 2);
           ctx.fill();
@@ -1721,7 +3603,7 @@
       }
 
       if (trail.length > 1) {
-        ctx.strokeStyle = "#167a5b";
+        ctx.strokeStyle = colors.start;
         ctx.lineWidth = 2.4;
         ctx.beginPath();
         trail.forEach((p, i) => {
@@ -1732,16 +3614,16 @@
         ctx.stroke();
       }
 
-      ctx.fillStyle = "#ffffff";
-      ctx.strokeStyle = "#167a5b";
+      ctx.fillStyle = colors.markerFill;
+      ctx.strokeStyle = colors.start;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(a[0], a[1], 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      ctx.strokeStyle = "#b42318";
-      ctx.fillStyle = "#b42318";
+      ctx.strokeStyle = colors.goal;
+      ctx.fillStyle = colors.goal;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(b[0], b[1], 7, 0, Math.PI * 2);
@@ -1756,11 +3638,11 @@
       if (Number.isFinite(Number(t.x)) && Number.isFinite(Number(t.y))) {
         const p = toScreen([Number(t.x), Number(t.y)]);
         const th = Number(t.th || 0) * Math.PI / 180;
-        ctx.fillStyle = "#1d2520";
+        ctx.fillStyle = colors.robot;
         ctx.beginPath();
         ctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "#1d2520";
+        ctx.strokeStyle = colors.robot;
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(p[0], p[1]);
@@ -1768,7 +3650,7 @@
         ctx.stroke();
       }
 
-      ctx.fillStyle = "#627067";
+      ctx.fillStyle = colors.label;
       ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
       ctx.fillText("A (0,0)", a[0] + 8, a[1] - 8);
       ctx.fillText(`B (${fmt(goal.x)},${fmt(goal.y)})`, b[0] + 10, b[1] - 10);
@@ -1835,26 +3717,37 @@
       }
     }
 
+    function missionTargetPayload() {
+      const gx = Number(el("gxInput").value);
+      const gy = Number(el("gyInput").value);
+      const distance = Math.hypot(gx, gy);
+      if (!Number.isFinite(distance)) throw new Error("Informe um alvo valido em milimetros.");
+      if (distance > 10000) {
+        throw new Error(`Alvo de ${Math.round(distance)} mm excede o limite de 10000 mm. Para 7 m use X=7000.`);
+      }
+      return {gx, gy};
+    }
+
     async function runMission() {
-      const payload = {
-        gx: Number(el("gxInput").value),
-        gy: Number(el("gyInput").value),
-        trim: Number(el("trimInput").value),
-        duration: Number(el("durationInput").value),
-        loop: el("loopSelect").value === "1",
-        diag: el("modeSelect").value === "diag"
-      };
       try {
+        const payload = {
+          ...missionTargetPayload(),
+          trim: Number(el("trimInput").value),
+          duration: Number(el("durationInput").value),
+          slow: el("speedModeSelect").value === "slow",
+          loop: el("loopSelect").value === "1",
+          diag: el("modeSelect").value === "diag"
+        };
         await api("/api/run", {method: "POST", body: JSON.stringify(payload)});
-        showStatus(payload.diag ? "Diagnostico iniciado." : "Missao iniciada.", "ok");
+        showStatus(payload.diag ? "Diagnostico iniciado." : "Missao tatil A->B iniciada, sem mapa previo.", "ok");
       } catch (error) {
         showStatus(error.message, "error");
       }
     }
 
     async function exploreMap() {
-      const payload = { gx: Number(el("gxInput").value), gy: Number(el("gyInput").value) };
       try {
+        const payload = missionTargetPayload();
         await api("/api/map/explore", {method: "POST", body: JSON.stringify(payload)});
         showStatus(`Gerando mapa automatico ate (${payload.gx},${payload.gy})... deixe o robo concluir.`, "ok");
       } catch (error) {
@@ -1863,11 +3756,11 @@
     }
 
     async function navigateMap() {
-      const payload = { gx: Number(el("gxInput").value), gy: Number(el("gyInput").value) };
       try {
+        const payload = missionTargetPayload();
         const r = await api("/api/map/navigate", {method: "POST", body: JSON.stringify(payload)});
         const n = (r && r.waypoints) ? r.waypoints.length : 0;
-        showStatus(`Navegando pelo mapa: ${n} waypoint(s) ate (${payload.gx},${payload.gy}).`, "ok");
+        showStatus(`Rodando A* salvo: ${n} waypoint(s) ate (${payload.gx},${payload.gy}).`, "ok");
       } catch (error) {
         showStatus(error.message, "error");
       }
@@ -2004,11 +3897,11 @@
     }
 
     async function roundtripMap() {
-      const payload = { gx: Number(el("gxInput").value), gy: Number(el("gyInput").value) };
       try {
+        const payload = missionTargetPayload();
         const r = await api("/api/map/roundtrip", {method: "POST", body: JSON.stringify(payload)});
         const n = (r && r.waypoints) ? r.waypoints.length : 0;
-        showStatus(`Ida e volta pelo mapa: ${n} waypoint(s), A->B->A.`, "ok");
+        showStatus(`A* salvo ida e volta: ${n} waypoint(s), A->B->A.`, "ok");
       } catch (error) {
         showStatus(error.message, "error");
       }
@@ -2028,7 +3921,7 @@
       const payload = simPayload();
       try {
         await api("/api/sim/batch", {method: "POST", body: JSON.stringify({worlds: payload.worlds, out_dir: payload.out_dir})});
-        showStatus("Validacao OpenGL iniciada. O resumo aparece no painel quando terminar.", "ok");
+        showStatus("Validacao OpenGL tatil iniciada. O resumo aparece no painel quando terminar.", "ok");
       } catch (error) {
         showStatus(error.message, "error");
       }
@@ -2066,6 +3959,10 @@
     }
 
     function bindEvents() {
+      const themeInput = el("themeToggleInput");
+      if (themeInput) {
+        themeInput.addEventListener("change", () => applyTheme(themeInput.checked ? "dark" : "light"));
+      }
       el("refreshPortsBtn").addEventListener("click", loadPorts);
       el("usbModeBtn").addEventListener("click", () => setConnectionMode("usb"));
       el("wifiModeBtn").addEventListener("click", () => setConnectionMode("wifi"));
@@ -2146,16 +4043,21 @@
           setButtons(state.last || {connected: false, running: false, busy: false});
         });
       }
+      bindEditorEvents();
       window.addEventListener("resize", () => drawMap(state.last || {}));
+      window.addEventListener("resize", drawEditorMap);
     }
 
     function boot() {
+      applyTheme(preferredTheme());
+      buildFlowLayout();
       renderSensors({});
       restoreConnectionPrefs();
       setConnectionMode(state.connectionMode);
       updateDriveLabels();
       renderSim({});
-      drawMap({goal: {x: 700, y: 0}, trail: []});
+      initMapEditor();
+      drawMap({goal: {x: 7000, y: 0}, trail: []});
       bindEvents();
       if (window.location.protocol === "file:") {
         el("portSelect").innerHTML = '<option value="">abra via http://localhost:8340</option>';

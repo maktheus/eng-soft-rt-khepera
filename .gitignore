@@ -11,6 +11,7 @@ tools/sim_khepera/*.exe
 controllers/**/build/
 
 # Python: cache da interface Flask
+.venv/
 __pycache__/
 *.pyc
 *.pyo

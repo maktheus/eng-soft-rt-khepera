@@ -10,8 +10,8 @@ Ele usa o `app.py` como ponte entre o navegador e o robo:
 - executa `patrulha --teleop` para controle manual tipo carrinho remoto;
 - **gera mapa A->B automaticamente** (`Mapear A->B (auto)` -> `patrulha --slow`):
   vai de A a B devagar, contorna os obstaculos e salva o mapa sozinho;
-- **navega por A\*** (`Navegar pelo mapa (A*)`): planeja sobre o ultimo mapa salvo
-  e dirige o robo pelos waypoints via `patrulha --mission`;
+- **diagnostica/roda A\*** (`Rodar A* salvo`): planeja sobre o ultimo mapa salvo
+  e pode dirigir o robo pelos waypoints via `patrulha --mission`;
 - mostra telemetria, sensores, bateria, console e trajetoria;
 - cria mapa passivo com grade de ocupacao e grafo topologico;
 - envia `main.c` local para o robo e recompila;
@@ -69,6 +69,29 @@ pedida; caso contrario, a senha do login e usada.
 
 ## Rodar
 
+Da raiz do repositorio, o caminho recomendado e:
+
+```bash
+make run
+```
+
+Esse comando cria/atualiza `.venv`, instala `interface/requirements.txt` e sobe o servidor
+Flask em `http://localhost:8340`. O Flask entrega o frontend de `static/index.html` e as
+rotas `/api`, entao front e back ficam no mesmo processo para a comunicacao com o robo.
+
+Opcoes uteis:
+
+```bash
+make run PORT=9000
+make run HOST=127.0.0.1
+make setup
+```
+
+No Windows sem GNU Make instalado, use `.\make.cmd run` na raiz do repositorio, ou instale
+o `make` para usar exatamente `make run`.
+
+Tambem da para rodar manualmente:
+
 ```powershell
 cd interface
 python -m pip install -r requirements.txt
@@ -95,10 +118,12 @@ rede Wi-Fi (ou vice-versa).
 3. Use `Enviar + compilar` para sincronizar o `khepera_real/patrulha/main.c`.
 4. Teste primeiro em `Diagnostico` ou com as rodas suspensas.
 5. Para controle manual, clique em `Entrar no controle` e segure os botoes de direcao.
-6. Para missao autonoma A->B, defina o alvo `(X,Y)` e clique `Iniciar`.
+6. Para missao autonoma A->B, defina o alvo `(X,Y)` e clique `Iniciar`. Esse e o
+   fluxo principal: o robo nao recebe mapa previo, apenas alvo, odometria e IR.
 7. Para **gerar o mapa**, clique `Mapear A->B (auto)` (ele mapeia e salva sozinho) — ou
    ligue `Iniciar mapa` manualmente antes de rodar um A->B.
-8. Com um mapa salvo, clique `Navegar pelo mapa (A*)` para ir ao alvo pelo caminho planejado.
+8. Com um mapa salvo, use `Rodar A* salvo` apenas para diagnostico/comparacao ou
+   para um experimento com waypoints planejados.
 
 Para comandos manuais, use o console da propria pagina. `Ctrl-C` e enviado pelo
 botao `Parar`.
@@ -117,7 +142,8 @@ Cada sessao de mapeamento e salva em `interface/maps/<sessao>/`:
 - `graph.json`: grafo topologico com nos e arestas navegaveis.
 
 O mapa observa pose, sensores frontais e trajeto para construir uma grade de
-ocupacao limpa. Ele ja alimenta o planejador A* (abaixo).
+ocupacao limpa. Ele alimenta o planejador A* (abaixo), mas o controlador principal
+continua sendo tatil e sem mapa previo.
 
 ## Geracao automatica de mapa (Mapear A->B)
 
@@ -127,17 +153,17 @@ linear) para contornar os obstaculos devagar e amostrar melhor, e ao chegar em B
 (ou parar) encerra e **salva o mapa** em `interface/maps/<sessao>/`.
 Endpoint: `POST /api/map/explore {gx,gy}`.
 
-## Planejamento e navegacao por A\* (Navegar pelo mapa)
+## Planejamento e navegacao por A\* (diagnostico)
 
-O botao **Navegar pelo mapa (A*)** planeja um caminho sobre o **ultimo mapa salvo**
-e dirige o robo pelos waypoints:
+O botao **Rodar A* salvo** planeja um caminho sobre o **ultimo mapa salvo** e,
+quando acionado, dirige o robo pelos waypoints:
 
 1. `planner.py` roda um A* 8-conexo sobre o `grid.json`: celulas `occupied` dilatadas
    pelo raio do robo = bloqueadas; o resto (inclusive nao observado) = livre; o caminho
    e simplificado por linha-de-visada em poucos waypoints.
 2. O robo sobe em **modo missao** (`patrulha --mission`) e recebe cada `goto X Y` pela
-   serial, mantendo a **odometria continua** entre os trechos; o Bug2 reativo ainda
-   cuida de obstaculos nao mapeados.
+   serial, mantendo a **odometria continua** entre os trechos; o navegador tatil
+   ainda cuida de obstaculos nao mapeados.
 
 Endpoint: `POST /api/map/navigate {gx,gy}`.
 
@@ -151,7 +177,7 @@ Endpoint: `POST /api/map/navigate {gx,gy}`.
 Proximos incrementos uteis:
 
 - localizacao persistente (corrigir a deriva da odometria entre sessoes) para reusar mapas;
-- expor os ganhos do ponto-P (`K_CT`, `LOOKAHEAD_MM`, `KI_CT`) no card de parametros;
+- calibrar os trechos de recuo e contorno com novas rodadas no hardware;
 - metricas ISE/ITSE do erro lateral a partir do `telemetry.ndjson` (validacao quantitativa);
 - HTTPS/autenticacao para uso fora da maquina local;
 - layout mobile dedicado para controle manual em tablet/celular.
